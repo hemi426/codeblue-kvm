@@ -58,12 +58,15 @@ See [docs/BUILDING.md](docs/BUILDING.md) for details.
    into the target. Plug the capture dongle's HDMI into the target and its USB
    into your laptop (a USB 3 port if the dongle supports it).
 2. Pick the serial port, the protocol, and the video device, then **Connect**.
-3. Click the video (or **Capture**) to send keyboard and mouse to the target.
+3. Click **Capture** to send keyboard and mouse to the target. An amber
+   banner shows while they are captured.
 
 | Key | Action |
 |-----|--------|
+| Ctrl+Alt (press and release, nothing else) | Release keyboard and mouse |
 | Menu key (next to right Ctrl) | Release keyboard and mouse |
 | Ctrl+Alt+Enter (while captured) | Toggle full screen |
+| Ctrl+Alt+1 | Toggle 1:1 pixels (sharpest text; no scaling) |
 | F11 (not captured) | Toggle full screen |
 | Esc (full screen, not captured) | Leave full screen |
 | F12 (not captured) | Save a snapshot to Pictures\CodeBlue |

@@ -12,6 +12,7 @@ namespace CodeBlue.Viewer;
 internal sealed class MainForm : Form
 {
     private const uint VK_RETURN = 0x0D;
+    private const uint VK_1 = 0x31;
     private const uint VK_APPS = 0x5D; // Menu key: releases capture
 
     private const string ReleaseHint =
@@ -37,8 +38,10 @@ internal sealed class MainForm : Form
     private readonly VideoView _video;
 
     private readonly FlowLayoutPanel _toolbar;
-    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox;
+    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _rendererBox;
+    private readonly string _activeRenderer; // what libVLC was started with
     private readonly NumericUpDown _cachingBox, _ledBox;
+    private readonly CheckBox _nativeBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
     private readonly Label _status;
     private readonly Label _banner;
@@ -50,7 +53,7 @@ internal sealed class MainForm : Form
     private KeyboardHook? _hook;
     private volatile bool _captured; // read by the watchdog thread
     private bool _cursorHidden;
-    private bool _swallowEnterUp;
+    private uint _swallowUpVk; // key-up of a viewer hotkey, kept from the target
     private bool _releaseChord; // Ctrl and Alt are down, and nothing else
     private readonly HashSet<byte> _held = [];
 
@@ -76,7 +79,9 @@ internal sealed class MainForm : Form
         MinimumSize = new Size(800, 500);
         KeyPreview = true;
 
-        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--verbose=2");
+        var vlcArgs = new List<string> { "--no-video-title-show", "--no-snapshot-preview", "--verbose=2" };
+        if (Renderers.VlcOption(_settings.Renderer) is string voutArg) vlcArgs.Add(voutArg);
+        _libVlc = new LibVLC([.. vlcArgs]);
         OpenVlcLog();
         _player = new MediaPlayer(_libVlc)
         {
@@ -85,7 +90,12 @@ internal sealed class MainForm : Form
             EnableMouseInput = false,
         };
         _player.Playing += (_, _) => WriteLog("player: playing");
-        _player.Vout += (_, e) => WriteLog($"player: video outputs = {e.Count}");
+        _player.Vout += (_, e) =>
+        {
+            WriteLog($"player: video outputs = {e.Count}");
+            // Not from inside libVLC's event callback: calling back into libVLC there can deadlock.
+            if (e.Count > 0) PostToUi(ApplySquarePixels);
+        };
         _player.EncounteredError += (_, _) =>
         {
             WriteLog("player: encountered error");
@@ -102,6 +112,8 @@ internal sealed class MainForm : Form
         _protocolBox = MakeCombo(190);
         _protocolBox.Items.AddRange([.. KvmLinks.Available]);
         _deviceBox = MakeCombo(210, editable: true);
+        _rendererBox = MakeCombo(140);
+        _rendererBox.Items.AddRange(Renderers.Names);
         _formatBox = MakeCombo(80);
         _formatBox.Items.AddRange(CaptureOptions.Formats);
         _sizeBox = MakeCombo(110);
@@ -122,6 +134,8 @@ internal sealed class MainForm : Form
         _cadButton = MakeButton("Ctrl+Alt+Del", (_, _) => SendCtrlAltDel());
         var snapshotButton = MakeButton("Snapshot", (_, _) => TakeSnapshot());
         var fullscreenButton = MakeButton("Full screen", (_, _) => ToggleFullscreen());
+        _nativeBox = new CheckBox { Text = "1:1 pixels", AutoSize = true, Margin = new Padding(10, 6, 2, 2) };
+        _nativeBox.CheckedChanged += (_, _) => ApplyScale();
 
         _toolbar = new FlowLayoutPanel
         {
@@ -137,10 +151,12 @@ internal sealed class MainForm : Form
             MakeLabel("Protocol"), _protocolBox,
             MakeLabel("Video"), _deviceBox,
             MakeLabel("Format"), _formatBox,
+            MakeLabel("Renderer"), _rendererBox,
             MakeLabel("Size"), _sizeBox,
             MakeLabel("FPS"), _fpsBox,
             MakeLabel("Cache ms"), _cachingBox,
             MakeLabel("LED %"), _ledBox,
+            _nativeBox,
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
         ]);
 
@@ -177,10 +193,21 @@ internal sealed class MainForm : Form
         RefreshDevices();
         SelectItem(_protocolBox, _settings.Protocol);
         SelectItem(_formatBox, _settings.Format);
+        SelectItem(_rendererBox, _settings.Renderer);
+        _activeRenderer = _rendererBox.SelectedItem as string ?? Renderers.Auto;
+        _rendererBox.SelectedIndexChanged += (_, _) =>
+        {
+            SaveSettings();
+            if (_rendererBox.SelectedItem as string != _activeRenderer)
+                SetStatus($"Renderer changes take effect when CodeBlue restarts (now using {_activeRenderer}).");
+            else
+                UpdateUi();
+        };
         SelectItem(_sizeBox, _settings.Size);
         SelectItem(_fpsBox, _settings.Fps);
         _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
         _ledBox.Value = Math.Clamp(_settings.LedBrightnessPercent, 0, 100);
+        _nativeBox.Checked = _settings.NativeScale;
         _ledBox.ValueChanged += (_, _) => SetLed(LedConnected); // live preview while connected
 
         Deactivate += (_, _) => StopCapture();
@@ -268,9 +295,9 @@ internal sealed class MainForm : Form
         _banner.Visible = _captured;
 
         SetStatus(_captured
-            ? "Captured. Release: Ctrl+Alt or Menu key. Full screen: Ctrl+Alt+Enter."
+            ? "Captured. Release: Ctrl+Alt or Menu key. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1."
             : !running
-                ? "Not connected. F11: full screen, F12: snapshot."
+                ? "Not connected. F11: full screen, F12: snapshot, Ctrl+Alt+1: 1:1 pixels."
                 : _link is null
                     ? $"Showing {_deviceBox.Text}. No keyboard/mouse link."
                     : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click Capture to take control.");
@@ -287,10 +314,12 @@ internal sealed class MainForm : Form
         _settings.VideoDevice = _deviceBox.Text.Length > 0 ? _deviceBox.Text : _settings.VideoDevice;
         _settings.Protocol = _protocolBox.SelectedItem as string;
         _settings.Format = _formatBox.SelectedItem as string ?? CaptureOptions.Auto;
+        _settings.Renderer = _rendererBox.SelectedItem as string ?? Renderers.Auto;
         _settings.Size = _sizeBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.Fps = _fpsBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.CachingMs = (int)_cachingBox.Value;
         _settings.LedBrightnessPercent = (int)_ledBox.Value;
+        _settings.NativeScale = _nativeBox.Checked;
         _settings.Save();
     }
 
@@ -320,6 +349,7 @@ internal sealed class MainForm : Form
 
         // Always point libVLC at the video control's current window handle.
         _player.Hwnd = _video.Handle;
+        _player.AspectRatio = null; // back to automatic until ApplySquarePixels sees the new stream
 
         string[] vlcOptions = options.ToVlcOptions();
         WriteLog($"codeblue: opening dshow:// {string.Join(' ', vlcOptions)}");
@@ -381,6 +411,37 @@ internal sealed class MainForm : Form
         }
         UpdateUi();
     }
+
+    /// <summary>
+    /// Displays the capture with square pixels, whatever the dshow module assumed.
+    /// Covers Size = Auto, where the frame size isn't known until video starts.
+    /// </summary>
+    private void ApplySquarePixels()
+    {
+        if (!_videoRunning) return;
+        uint w = 0, h = 0;
+        if (_player.Size(0, ref w, ref h) && w > 0 && h > 0)
+        {
+            string aspect = CaptureOptions.AspectOf(w, h);
+            _player.AspectRatio = aspect;
+            ApplyScale(); // re-apply to the new video output
+            WriteLog($"codeblue: video is {w}x{h}; display aspect set to {aspect}");
+        }
+        else
+        {
+            WriteLog("codeblue: video size not available yet; leaving aspect ratio automatic");
+        }
+    }
+
+    /// <summary>
+    /// 1:1 shows each captured pixel as exactly one screen pixel, centred, for the
+    /// sharpest possible text; a capture larger than the window is cropped to its
+    /// centre. Otherwise the picture is scaled to fit, which softens thin fonts
+    /// when the scale isn't a whole number (1920 to 2560 is 1.33x).
+    /// </summary>
+    private void ApplyScale() => _player.Scale = _nativeBox.Checked ? 1f : 0f;
+
+    private void ToggleNativeScale() => _nativeBox.Checked = !_nativeBox.Checked;
 
     /// <summary>Sends a status colour scaled by the LED % setting (0 turns the LED off).</summary>
     private void SetLed((byte R, byte G, byte B) color)
@@ -463,7 +524,7 @@ internal sealed class MainForm : Form
         if (_cursorHidden) { Cursor.Show(); _cursorHidden = false; }
 
         _held.Clear();
-        _swallowEnterUp = false;
+        _swallowUpVk = 0;
         _releaseChord = false;
         _link?.ReleaseAll(); // never leave a key or button stuck down on the target
         UpdateUi();
@@ -492,18 +553,22 @@ internal sealed class MainForm : Form
             return true;
         }
 
-        if (ev.VirtualKey == VK_RETURN)
+        // Viewer hotkeys while captured: Ctrl+Alt+Enter (full screen), Ctrl+Alt+1 (1:1 pixels).
+        // Their key-down, auto-repeats and key-up all stay away from the target.
+        if (ev.VirtualKey == VK_RETURN || ev.VirtualKey == VK_1)
         {
+            if (ev.Up && ev.VirtualKey == _swallowUpVk)
+            {
+                _swallowUpVk = 0;
+                return true;
+            }
+            if (!ev.Up && ev.VirtualKey == _swallowUpVk) return true; // auto-repeat
             if (!ev.Up && _held.Any(HidUsageMap.IsCtrl) && _held.Any(HidUsageMap.IsAlt))
             {
                 _releaseChord = false; // Ctrl+Alt was used for something else
-                _swallowEnterUp = true;
-                PostToUi(ToggleFullscreen);
-                return true;
-            }
-            if (ev.Up && _swallowEnterUp)
-            {
-                _swallowEnterUp = false;
+                _swallowUpVk = ev.VirtualKey;
+                if (ev.VirtualKey == VK_RETURN) PostToUi(ToggleFullscreen);
+                else PostToUi(ToggleNativeScale);
                 return true;
             }
         }
@@ -588,6 +653,9 @@ internal sealed class MainForm : Form
             case Keys.Escape when _fullscreen:
                 ToggleFullscreen();
                 return true;
+            case Keys.Control | Keys.Alt | Keys.D1:
+                ToggleNativeScale();
+                return true;
             case Keys.F12:
                 TakeSnapshot();
                 return true;
@@ -659,7 +727,7 @@ internal sealed class MainForm : Form
         {
             Directory.CreateDirectory(Path.GetDirectoryName(VlcLogPath)!);
             _vlcLog = new StreamWriter(VlcLogPath, append: false) { AutoFlush = true };
-            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}");
+            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}, renderer {_settings.Renderer}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

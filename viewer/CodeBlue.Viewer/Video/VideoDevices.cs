@@ -32,6 +32,37 @@ internal static class VideoDevices
 }
 
 /// <summary>
+/// libVLC video output modules ("renderers") the user can choose. Auto lets libVLC
+/// pick (Direct3D 11 on current Windows). The others exist for troubleshooting:
+/// some pixel formats or GPU drivers render badly on one path and fine on another.
+/// GDI does its colour conversion in software and is pixel-exact, at some CPU cost.
+/// libVLC reads this when it starts, so a change applies on the next launch.
+/// </summary>
+internal static class Renderers
+{
+    public const string Auto = "Auto";
+
+    private static readonly (string Name, string Module)[] All =
+    [
+        (Auto, ""),
+        ("Direct3D 11", "direct3d11"),
+        ("Direct3D 9", "direct3d9"),
+        ("OpenGL", "gl"),
+        ("GDI (software)", "wingdi"),
+    ];
+
+    public static string[] Names { get; } = [.. All.Select(r => r.Name)];
+
+    /// <summary>libVLC command-line option for a renderer name, or null for Auto or an unknown name.</summary>
+    public static string? VlcOption(string? name)
+    {
+        foreach (var (n, module) in All)
+            if (n == name && module.Length > 0) return $"--vout={module}";
+        return null;
+    }
+}
+
+/// <summary>
 /// DirectShow capture options. "Auto" leaves a setting to libVLC and the driver.
 /// The defaults favor cheap USB 2.0 dongles: MJPEG keeps 1080p at full frame
 /// rate within USB 2.0 bandwidth, and a short cache keeps the picture current.
@@ -53,8 +84,31 @@ internal sealed record CaptureOptions(string Device, string Format, string Size,
             $":live-caching={CachingMs}",
         };
         if (Format != Auto) opts.Add($":dshow-chroma={Format}");
-        if (Size != Auto) opts.Add($":dshow-size={Size}");
+        if (Size != Auto)
+        {
+            opts.Add($":dshow-size={Size}");
+            // VLC's DirectShow module assumes 4:3 unless told otherwise, which
+            // squeezes 16:9 capture. Capture pixels are square, so the display
+            // aspect is simply width:height.
+            if (AspectOf(Size) is string aspect) opts.Add($":dshow-aspect-ratio={aspect}");
+        }
         if (Fps != Auto) opts.Add($":dshow-fps={Fps}");
         return [.. opts];
+    }
+
+    /// <summary>Reduces a width and height to an aspect ratio, e.g. 1920, 1080 to "16:9".</summary>
+    public static string AspectOf(uint width, uint height)
+    {
+        uint a = width, b = height;
+        while (b != 0) (a, b) = (b, a % b);
+        return a == 0 ? $"{width}:{height}" : $"{width / a}:{height / a}";
+    }
+
+    private static string? AspectOf(string size)
+    {
+        var parts = size.Split('x');
+        return parts.Length == 2 && uint.TryParse(parts[0], out uint w) && uint.TryParse(parts[1], out uint h) && w > 0 && h > 0
+            ? AspectOf(w, h)
+            : null;
     }
 }
