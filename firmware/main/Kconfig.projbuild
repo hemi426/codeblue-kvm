@@ -1,0 +1,18 @@
+menu "CodeBlue"
+
+    config CODEBLUE_LED_GPIO
+        int "Status LED GPIO (WS2812)"
+        default 48
+        help
+            GPIO driving the board's addressable RGB LED. ESP32-S3-DevKitC-1
+            v1.0 boards and most clones use GPIO48; v1.1 boards use GPIO38.
+
+    config CODEBLUE_LED_BRIGHTNESS
+        int "Default status LED brightness (percent)"
+        range 0 100
+        default 5
+        help
+            Used until the viewer sets a brightness (which can be saved on
+            the board). 5% is plenty for an indicator LED.
+
+endmenu

@@ -1,0 +1,6 @@
+# Managed components, fetched by ESP-IDF's component manager on first build.
+# Resolved versions are recorded in ../dependencies.lock (committed).
+dependencies:
+  idf: ">=6.0"
+  espressif/esp_tinyusb: "~2.2.1"
+  espressif/led_strip: "~3.1.1"
