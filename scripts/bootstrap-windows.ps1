@@ -140,8 +140,9 @@ function Test-Winget {
     return [bool](Get-Command winget -ErrorAction SilentlyContinue)
 }
 
-function Install-WithWinget([string]$Id) {
+function Install-WithWinget([string]$Id, [string]$Override) {
     $wingetArgs = @('install', '--id', $Id, '--exact', '--source', 'winget')
+    if ($Override) { $wingetArgs += @('--override', $Override) }
     if ($Yes) { $wingetArgs += @('--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity') }
     Write-Host ""
     Write-Host "  winget $($wingetArgs -join ' ')" -ForegroundColor DarkGray
@@ -239,26 +240,68 @@ function Resolve-IdfVersion {
     return (Get-Content -Path (Join-Path $RepoRoot 'firmware\IDF_VERSION') -TotalCount 1).Trim()
 }
 
-function Test-Python {
-    # Check plain 'python', because that is what ESP-IDF's install.ps1 runs.
-    # (The 'py' launcher can report a different, older interpreter.)
-    $cmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($cmd) {
-        $out = & python --version 2>&1
-        if ($out -match 'Python (\d+\.\d+)') {
-            $ver = [version]$Matches[1]
-            $where = $cmd.Source
-            if ($ver -ge $IdfMinPython) {
-                return [pscustomobject]@{ Name = 'Python'; Ok = $true; State = 'OK'; Detail = "$ver ($where)"; WingetId = 'Python.Python.3.12' }
-            }
-            return [pscustomobject]@{ Name = 'Python'; Ok = $false; State = 'OLD'; Detail = "found $ver at $where; need $IdfMinPython+"; WingetId = 'Python.Python.3.12' }
+# python.org installer options for winget: per-user, put Python first on the user PATH.
+$PythonWingetId = 'Python.Python.3.12'
+$PythonOverride = '/quiet InstallAllUsers=0 PrependPath=1 Include_launcher=1'
+
+# Finds a Python that ESP-IDF's installer can use, without trusting PATH order.
+# Machines often have Pythons that must not be used: the Microsoft Store stub
+# (WindowsApps), and tools' private virtual environments (PlatformIO's penv and
+# the like). This collects every candidate, drops those, and picks the newest
+# 3.10+ that works. The result is only used to run ESP-IDF's install.ps1, which
+# then builds its own private environment under ~\.espressif.
+function Find-IdfPython {
+    # Native tools may write to stderr; under 'Stop', Windows PowerShell 5.1 treats that as fatal.
+    $ErrorActionPreference = 'Continue'
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    # Every Python the py launcher knows, with its path.
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        foreach ($line in (& py -0p 2>$null)) {
+            if ($line -match '([A-Za-z]:\\.*?python\.exe)\s*$') { $candidates.Add($Matches[1]) }
         }
     }
-    return [pscustomobject]@{ Name = 'Python'; Ok = $false; State = 'MISSING'; Detail = "need $IdfMinPython+"; WingetId = 'Python.Python.3.12' }
+    # Whatever is on PATH.
+    foreach ($c in @(Get-Command python -All -ErrorAction SilentlyContinue)) { $candidates.Add($c.Source) }
+    # Standard python.org install locations, in case none of the above finds them.
+    foreach ($pattern in @(
+            (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python3*\python.exe'),
+            (Join-Path $env:ProgramFiles 'Python3*\python.exe'))) {
+        foreach ($f in @(Get-ChildItem $pattern -ErrorAction SilentlyContinue)) { $candidates.Add($f.FullName) }
+    }
+
+    $best = $null
+    $rejected = [System.Collections.Generic.List[string]]::new()
+    foreach ($path in ($candidates | Select-Object -Unique)) {
+        if ($path -like '*\WindowsApps\*') { $rejected.Add("$path (Microsoft Store Python or its alias; its sandbox can break virtual environments)"); continue }
+        $parent = Split-Path (Split-Path $path)
+        if ((Test-Path (Join-Path $parent 'pyvenv.cfg')) -or (Test-Path (Join-Path (Split-Path $path) 'pyvenv.cfg'))) {
+            $rejected.Add("$path (another tool's private environment)"); continue
+        }
+        try {
+            $out = & $path -c "import sys, venv, ensurepip; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+        } catch { continue }
+        if ($LASTEXITCODE -ne 0 -or -not ($out -match '^\d+\.\d+\.\d+$')) { $rejected.Add("$path (doesn't run, or lacks venv)"); continue }
+        $ver = [version]$out
+        if ($ver -lt $IdfMinPython) { $rejected.Add("$path ($ver is too old)"); continue }
+        if (-not $best -or $ver -gt $best.Version) { $best = [pscustomobject]@{ Path = $path; Version = $ver } }
+    }
+    return [pscustomobject]@{ Best = $best; Rejected = $rejected }
+}
+
+function Test-Python {
+    $found = Find-IdfPython
+    if ($found.Best) {
+        return [pscustomobject]@{ Name = 'Python'; Ok = $true; State = 'OK'; Detail = "$($found.Best.Version) ($($found.Best.Path))"
+            WingetId = $PythonWingetId; Exe = $found.Best.Path; Rejected = $found.Rejected }
+    }
+    return [pscustomobject]@{ Name = 'Python'; Ok = $false; State = 'MISSING'; Detail = "need $IdfMinPython+ (python.org build)"
+        WingetId = $PythonWingetId; Exe = $null; Rejected = $found.Rejected }
 }
 
 # Returns the tag an ESP-IDF checkout is at, or $null.
 function Get-IdfCheckoutTag([string]$Path) {
+    $ErrorActionPreference = 'Continue' # 'git describe' reports "no tag" on stderr
     if (-not (Test-Path (Join-Path $Path 'tools\idf.py'))) { return $null }
     $tag = & git -C $Path describe --tags --exact-match 2>$null
     if ($LASTEXITCODE -eq 0) { return $tag.Trim() }
@@ -270,7 +313,8 @@ function Test-IdfToolchain([string]$Tag) {
     $tools = if ($env:IDF_TOOLS_PATH) { $env:IDF_TOOLS_PATH } else { Join-Path $HOME '.espressif' }
     $mm = if ($Tag -match '^v(\d+\.\d+)') { $Matches[1] } else { '' }
     $compiler = Test-Path (Join-Path $tools 'tools\xtensa-esp-elf')
-    $pyenv = @(Get-ChildItem (Join-Path $tools 'python_env') -Directory -Filter "idf${mm}_py*" -ErrorAction SilentlyContinue).Count -gt 0
+    $pyenv = @(Get-ChildItem (Join-Path $tools 'python_env') -Directory -Filter "idf${mm}_py*_env" -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path (Join-Path $_.FullName 'Scripts\python.exe') }).Count -gt 0
     return ($compiler -and $pyenv)
 }
 
@@ -291,6 +335,7 @@ function Invoke-FirmwareSetup {
     $toolsOk = $sourceOk -and (Test-IdfToolchain $tag)
 
     foreach ($c in @($git, $python)) { Write-Status $c.Name $c.State $c.Detail }
+    foreach ($r in $python.Rejected) { Write-Host "                         skipped: $r" -ForegroundColor DarkGray }
     Write-Status "ESP-IDF $tag" $(if ($sourceOk) { 'OK' } elseif ($haveTag) { 'OLD' } else { 'MISSING' }) `
         $(if ($haveTag -and -not $sourceOk) { "$idfDir is at $haveTag" } else { $idfDir })
     Write-Status 'esp32s3 toolchain' $(if ($toolsOk) { 'OK' } else { 'MISSING' }) ''
@@ -309,7 +354,7 @@ function Invoke-FirmwareSetup {
     $missing = @(@($git, $python) | Where-Object { -not $_.Ok })
     Write-Host ""
     Write-Host "  To set up:"
-    foreach ($m in $missing) { Write-Host "    - $($m.Name) with winget ($($m.WingetId))" }
+    foreach ($m in $missing) { Write-Host "    - $($m.Name) with winget ($($m.WingetId)), added to your user PATH" }
     if (-not $sourceOk) { Write-Host "    - Clone ESP-IDF $tag into $idfDir (about 1 GB)" }
     Write-Host "    - Run ESP-IDF's install.ps1 for esp32s3 (downloads its toolchain into ~\.espressif)"
     if (-not (Confirm-Step "  Go ahead?")) {
@@ -319,8 +364,16 @@ function Invoke-FirmwareSetup {
 
     if ($missing.Count -gt 0) {
         if (-not (Test-Winget)) { throw "winget is not available; install $($missing.Name -join ', ') yourself, then run this again." }
-        foreach ($m in $missing) { Install-WithWinget $m.WingetId }
+        foreach ($m in $missing) {
+            $override = if ($m.Name -eq 'Python') { $PythonOverride } else { $null }
+            Install-WithWinget $m.WingetId $override
+        }
         Update-SessionPath
+        if (-not $python.Ok) {
+            $python = Test-Python
+            if (-not $python.Ok) { throw "Python was installed but can't be found yet. Open a new terminal and run this again." }
+            Write-Status 'Python' 'OK' $python.Detail
+        }
     }
 
     if (-not $sourceOk) {
@@ -330,8 +383,17 @@ function Invoke-FirmwareSetup {
         if ($LASTEXITCODE -ne 0) { throw "git clone of ESP-IDF $tag failed." }
     }
 
-    & (Join-Path $idfDir 'install.ps1') esp32s3 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "ESP-IDF install.ps1 failed." }
+    # Run ESP-IDF's installer with the chosen Python first on PATH, for this
+    # process only. Nothing outside this script sees the change.
+    $savedPath = $env:Path
+    try {
+        $pyDir = Split-Path $python.Exe
+        $env:Path = "$pyDir;$(Join-Path $pyDir 'Scripts');$savedPath"
+        & (Join-Path $idfDir 'install.ps1') esp32s3 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "ESP-IDF install.ps1 failed." }
+    } finally {
+        $env:Path = $savedPath
+    }
 
     Show-IdfNextSteps $idfDir
     return $true
@@ -339,8 +401,8 @@ function Invoke-FirmwareSetup {
 
 function Show-IdfNextSteps([string]$IdfDir) {
     Write-Host ""
-    Write-Host "  ESP-IDF is ready. In each new terminal, activate it, then build:" -ForegroundColor Green
-    Write-Host "    . `"$IdfDir\export.ps1`""
+    Write-Host "  ESP-IDF is ready. In each new terminal, activate it from the repo root, then build:" -ForegroundColor Green
+    Write-Host "    . .\scripts\activate-idf.ps1"
     Write-Host "    cd firmware; idf.py build"
 }
 

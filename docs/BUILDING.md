@@ -121,17 +121,23 @@ package manager.
 
 ### Building
 
-ESP-IDF has to be activated in each new terminal:
+ESP-IDF has to be activated in each new terminal. From the repo root:
 
 ```powershell
-. "$HOME\esp\esp-idf-v6.0.3\export.ps1"   # Windows
+. .\scripts\activate-idf.ps1               # Windows
 ```
 
 ```sh
-. ~/esp/esp-idf-v6.0.3/export.sh            # Linux and macOS
+. scripts/activate-idf.sh                   # Linux and macOS
 ```
 
-Then, from the repo root:
+Use these rather than ESP-IDF's own `export` scripts. Those pick ESP-IDF's
+Python environment from whichever `python` is first on PATH, which on machines
+with several Pythons can differ from the one ESP-IDF was installed with
+("Python virtual environment ... not found"). The activate scripts find the
+installed environment and point ESP-IDF at it directly.
+
+Then:
 
 ```sh
 cd firmware

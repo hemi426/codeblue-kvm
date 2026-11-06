@@ -94,8 +94,8 @@ if [ "$tools_ok" = 1 ]; then status "esp32s3 toolchain" OK; else status "esp32s3
 
 next_steps() {
     echo
-    echo "${green}ESP-IDF is ready. In each new shell, activate it, then build:${off}"
-    echo "    . \"$idf_dir/export.sh\""
+    echo "${green}ESP-IDF is ready. In each new shell, activate it from the repo root, then build:${off}"
+    echo "    . scripts/activate-idf.sh"
     echo "    cd firmware && idf.py build"
 }
 
