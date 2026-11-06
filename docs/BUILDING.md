@@ -30,6 +30,21 @@ reports OK.
 
 Exit codes: `0` ready, `1` something missing, `2` an install failed.
 
+#### "Run only scripts that you trust" prompt
+
+If you got the source from GitHub's **Download ZIP** button (or any other
+browser download), Windows marks the extracted files as coming from the
+internet, and PowerShell asks before running the script. Read the script first;
+then, if you're happy with it, clear the mark for the whole checkout:
+
+```powershell
+Get-ChildItem -Recurse -File | Unblock-File
+```
+
+Run that from the repo root. It affects only these files; your execution
+policy is unchanged. A checkout made with `git clone` never has the mark, so
+it never shows the prompt.
+
 ### Manual
 
 ```powershell
