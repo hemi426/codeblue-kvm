@@ -35,6 +35,7 @@
   <ItemGroup>
     <PackageReference Include="LibVLCSharp.WinForms" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows.GPL" />
     <PackageReference Include="System.IO.Ports" />
     <PackageReference Include="System.Management" />
   </ItemGroup>

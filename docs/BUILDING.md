@@ -59,6 +59,12 @@ dotnet run --project viewer\CodeBlue.Viewer
 NuGet versions live in one place, `viewer/Directory.Packages.props`
 (Central Package Management). To update a dependency, change its line there.
 
+libVLC comes in two packages that must stay at the same version:
+`VideoLAN.LibVLC.Windows` (the LGPL core and plugins) and
+`VideoLAN.LibVLC.Windows.GPL` (GPL-licensed plugins, including DirectShow
+capture). Without the second one, video fails with "VLC is unable to open the
+MRL 'dshow://'" in `%LOCALAPPDATA%\CodeBlue\libvlc.log`.
+
 ### Build options
 
 | Property | Default | Effect |
