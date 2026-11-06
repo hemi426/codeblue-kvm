@@ -12,7 +12,7 @@ internal sealed class ViewerSettings
     public string Size { get; set; } = "1920x1080";
     public string Fps { get; set; } = "30";
     public int CachingMs { get; set; } = 50;
-    public int LedBrightnessPercent { get; set; } = 25;
+    public int LedBrightnessPercent { get; set; } = 5;
 
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CodeBlue", "viewer.json");
