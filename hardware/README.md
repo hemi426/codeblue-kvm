@@ -17,4 +17,18 @@ Planned contents:
 |------|-------|
 | ESP32-S3-DevKitC-1 clone, N8R2 | RGB LED on GPIO48. Leave the IN-OUT and USB-OTG solder pads open. |
 | USB 2.0 HDMI capture dongle ("USB Video") | Needs Format = MJPG for usable 1080p. |
-| USB 3.0 HDMI capture dongle | Works with uncompressed formats too. |
+| "USB3.0 capture" dongle (sold as USB 3.0) | Behaves as a USB 2 device: YUY2 only reaches 1920x1080 at 10 fps, whatever the port. Use MJPG: 1080p at 30 fps, pixel-perfect at 1:1. |
+
+**Use MJPG for capture.** YUY2 also shows text artifacts in the viewer: libVLC 3
+hands packed YUY2 straight to its Direct3D 11 output, which distorts thin
+strokes. Snapshots are unaffected, since they skip the display path. The
+viewer's renderer can't be changed under libVLC 3 (see the comment in
+`MainForm.cs`), so there is no workaround short of libVLC 4.
+
+When testing a new dongle, check its real USB speed with USB Tree View
+("SuperSpeed" is USB 3, "High-Speed" is USB 2), and list the modes it offers
+from `%LOCALAPPDATA%\CodeBlue\libvlc.log` after connecting:
+
+```powershell
+Select-String -Path "$env:LOCALAPPDATA\CodeBlue\libvlc.log" -Pattern 'EnumDeviceCaps' | ForEach-Object Line
+```

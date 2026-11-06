@@ -13,6 +13,7 @@ internal sealed class MainForm : Form
 {
     private const uint VK_RETURN = 0x0D;
     private const uint VK_1 = 0x31;
+    private const uint VK_S = 0x53;
     private const uint VK_APPS = 0x5D; // Menu key: releases capture
 
     private const string ReleaseHint =
@@ -38,8 +39,7 @@ internal sealed class MainForm : Form
     private readonly VideoView _video;
 
     private readonly FlowLayoutPanel _toolbar;
-    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _rendererBox;
-    private readonly string _activeRenderer; // what libVLC was started with
+    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox;
     private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly CheckBox _nativeBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
@@ -79,9 +79,10 @@ internal sealed class MainForm : Form
         MinimumSize = new Size(800, 500);
         KeyPreview = true;
 
-        var vlcArgs = new List<string> { "--no-video-title-show", "--no-snapshot-preview", "--verbose=2" };
-        if (Renderers.VlcOption(_settings.Renderer) is string voutArg) vlcArgs.Add(voutArg);
-        _libVlc = new LibVLC([.. vlcArgs]);
+        // No renderer (video output) choice: in libVLC 3, embedding the player in our
+        // window resets its "vout" setting to automatic, overriding both --vout and a
+        // per-media :vout. libVLC 4 adds proper output selection; revisit then.
+        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--verbose=2");
         OpenVlcLog();
         _player = new MediaPlayer(_libVlc)
         {
@@ -112,8 +113,6 @@ internal sealed class MainForm : Form
         _protocolBox = MakeCombo(190);
         _protocolBox.Items.AddRange([.. KvmLinks.Available]);
         _deviceBox = MakeCombo(210, editable: true);
-        _rendererBox = MakeCombo(140);
-        _rendererBox.Items.AddRange(Renderers.Names);
         _formatBox = MakeCombo(80);
         _formatBox.Items.AddRange(CaptureOptions.Formats);
         _sizeBox = MakeCombo(110);
@@ -151,7 +150,6 @@ internal sealed class MainForm : Form
             MakeLabel("Protocol"), _protocolBox,
             MakeLabel("Video"), _deviceBox,
             MakeLabel("Format"), _formatBox,
-            MakeLabel("Renderer"), _rendererBox,
             MakeLabel("Size"), _sizeBox,
             MakeLabel("FPS"), _fpsBox,
             MakeLabel("Cache ms"), _cachingBox,
@@ -193,16 +191,6 @@ internal sealed class MainForm : Form
         RefreshDevices();
         SelectItem(_protocolBox, _settings.Protocol);
         SelectItem(_formatBox, _settings.Format);
-        SelectItem(_rendererBox, _settings.Renderer);
-        _activeRenderer = _rendererBox.SelectedItem as string ?? Renderers.Auto;
-        _rendererBox.SelectedIndexChanged += (_, _) =>
-        {
-            SaveSettings();
-            if (_rendererBox.SelectedItem as string != _activeRenderer)
-                SetStatus($"Renderer changes take effect when CodeBlue restarts (now using {_activeRenderer}).");
-            else
-                UpdateUi();
-        };
         SelectItem(_sizeBox, _settings.Size);
         SelectItem(_fpsBox, _settings.Fps);
         _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
@@ -295,12 +283,12 @@ internal sealed class MainForm : Form
         _banner.Visible = _captured;
 
         SetStatus(_captured
-            ? "Captured. Release: Ctrl+Alt or Menu key. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1."
+            ? "Captured. Release: Ctrl+Alt. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1. Snapshot: Ctrl+Alt+S."
             : !running
-                ? "Not connected. F11: full screen, F12: snapshot, Ctrl+Alt+1: 1:1 pixels."
+                ? "Not connected. F11: full screen, Ctrl+Alt+S or F12: snapshot, Ctrl+Alt+1: 1:1 pixels, Ctrl+Alt+C: capture."
                 : _link is null
                     ? $"Showing {_deviceBox.Text}. No keyboard/mouse link."
-                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click Capture to take control.");
+                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click Capture (or press Ctrl+Alt+C) to take control.");
     }
 
     private void SetStatus(string text) => _status.Text = text;
@@ -314,7 +302,6 @@ internal sealed class MainForm : Form
         _settings.VideoDevice = _deviceBox.Text.Length > 0 ? _deviceBox.Text : _settings.VideoDevice;
         _settings.Protocol = _protocolBox.SelectedItem as string;
         _settings.Format = _formatBox.SelectedItem as string ?? CaptureOptions.Auto;
-        _settings.Renderer = _rendererBox.SelectedItem as string ?? Renderers.Auto;
         _settings.Size = _sizeBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.Fps = _fpsBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.CachingMs = (int)_cachingBox.Value;
@@ -553,9 +540,9 @@ internal sealed class MainForm : Form
             return true;
         }
 
-        // Viewer hotkeys while captured: Ctrl+Alt+Enter (full screen), Ctrl+Alt+1 (1:1 pixels).
-        // Their key-down, auto-repeats and key-up all stay away from the target.
-        if (ev.VirtualKey == VK_RETURN || ev.VirtualKey == VK_1)
+        // Viewer hotkeys while captured: Ctrl+Alt+Enter (full screen), Ctrl+Alt+1 (1:1 pixels),
+        // Ctrl+Alt+S (snapshot). Their key-down, auto-repeats and key-up all stay away from the target.
+        if (ev.VirtualKey is VK_RETURN or VK_1 or VK_S)
         {
             if (ev.Up && ev.VirtualKey == _swallowUpVk)
             {
@@ -568,7 +555,8 @@ internal sealed class MainForm : Form
                 _releaseChord = false; // Ctrl+Alt was used for something else
                 _swallowUpVk = ev.VirtualKey;
                 if (ev.VirtualKey == VK_RETURN) PostToUi(ToggleFullscreen);
-                else PostToUi(ToggleNativeScale);
+                else if (ev.VirtualKey == VK_1) PostToUi(ToggleNativeScale);
+                else PostToUi(TakeSnapshot);
                 return true;
             }
         }
@@ -656,6 +644,12 @@ internal sealed class MainForm : Form
             case Keys.Control | Keys.Alt | Keys.D1:
                 ToggleNativeScale();
                 return true;
+            case Keys.Control | Keys.Alt | Keys.S:
+                TakeSnapshot();
+                return true;
+            case Keys.Control | Keys.Alt | Keys.C:
+                StartCapture(); // does nothing without a keyboard/mouse link
+                return true;
             case Keys.F12:
                 TakeSnapshot();
                 return true;
@@ -727,7 +721,7 @@ internal sealed class MainForm : Form
         {
             Directory.CreateDirectory(Path.GetDirectoryName(VlcLogPath)!);
             _vlcLog = new StreamWriter(VlcLogPath, append: false) { AutoFlush = true };
-            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}, renderer {_settings.Renderer}");
+            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -740,7 +734,7 @@ internal sealed class MainForm : Form
     {
         WriteLog($"{e.Level,-7} {e.Module}: {e.Message}", e.Level);
 
-        if (e.Level == LogLevel.Error)
+        if (e.Level == LogLevel.Error && !IsRoutineVlcError(e.Message))
         {
             // libVLC can emit errors in bursts; update the status bar at most twice a second.
             long now = Environment.TickCount64;
@@ -752,6 +746,17 @@ internal sealed class MainForm : Form
             }
         }
     }
+
+    // libVLC logs these at error level, but they are routine on live capture: they
+    // only mean the stream was briefly late and libVLC adjusted its buffering.
+    // They still go to the log; they just don't belong in the status bar.
+    private static readonly string[] RoutineVlcErrors =
+    [
+        "is called too late", // ES_OUT_SET_(GROUP_)PCR ... (pts_delay increased to N ms)
+    ];
+
+    private static bool IsRoutineVlcError(string message) =>
+        RoutineVlcErrors.Any(r => message.Contains(r, StringComparison.Ordinal));
 
     /// <summary>Thread-safe; called from libVLC threads as well as the UI thread.</summary>
     private void WriteLog(string message, LogLevel level = LogLevel.Notice)

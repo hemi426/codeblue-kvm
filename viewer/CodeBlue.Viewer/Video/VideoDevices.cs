@@ -32,37 +32,6 @@ internal static class VideoDevices
 }
 
 /// <summary>
-/// libVLC video output modules ("renderers") the user can choose. Auto lets libVLC
-/// pick (Direct3D 11 on current Windows). The others exist for troubleshooting:
-/// some pixel formats or GPU drivers render badly on one path and fine on another.
-/// GDI does its colour conversion in software and is pixel-exact, at some CPU cost.
-/// libVLC reads this when it starts, so a change applies on the next launch.
-/// </summary>
-internal static class Renderers
-{
-    public const string Auto = "Auto";
-
-    private static readonly (string Name, string Module)[] All =
-    [
-        (Auto, ""),
-        ("Direct3D 11", "direct3d11"),
-        ("Direct3D 9", "direct3d9"),
-        ("OpenGL", "gl"),
-        ("GDI (software)", "wingdi"),
-    ];
-
-    public static string[] Names { get; } = [.. All.Select(r => r.Name)];
-
-    /// <summary>libVLC command-line option for a renderer name, or null for Auto or an unknown name.</summary>
-    public static string? VlcOption(string? name)
-    {
-        foreach (var (n, module) in All)
-            if (n == name && module.Length > 0) return $"--vout={module}";
-        return null;
-    }
-}
-
-/// <summary>
 /// DirectShow capture options. "Auto" leaves a setting to libVLC and the driver.
 /// The defaults favor cheap USB 2.0 dongles: MJPEG keeps 1080p at full frame
 /// rate within USB 2.0 bandwidth, and a short cache keeps the picture current.
