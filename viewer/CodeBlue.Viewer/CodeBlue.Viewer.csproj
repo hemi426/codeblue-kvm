@@ -34,10 +34,33 @@
 
   <ItemGroup>
     <PackageReference Include="LibVLCSharp.WinForms" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows.GPL" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" GeneratePathProperty="true" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows.GPL" GeneratePathProperty="true" />
     <PackageReference Include="System.IO.Ports" />
     <PackageReference Include="System.Management" />
   </ItemGroup>
+
+  <!--
+    Copy the GPL libVLC plugins (DirectShow capture among them) ourselves.
+    Both libVLC packages define their copy step as a target with the same name,
+    CollectVlcFilesToCopyWindows, and MSBuild keeps only the last definition, so
+    the GPL package's own copy never runs.
+
+    Only DLLs the core package doesn't already provide are copied, so the two
+    packages never compete for the same output file. plugins.dat (libVLC's
+    plugin cache) comes from the core package; libVLC scans any plugin the
+    cache doesn't list.
+  -->
+  <Target Name="CodeBlueCopyGplVlcPlugins" BeforeTargets="BeforeBuild"
+          Condition="'$(PkgVideoLAN_LibVLC_Windows_GPL)' != ''">
+    <ItemGroup>
+      <_CodeBlueGplVlcPlugin Include="$(PkgVideoLAN_LibVLC_Windows_GPL)\build\x64\plugins\**\*.dll" />
+      <Content Include="@(_CodeBlueGplVlcPlugin)"
+               Condition="!Exists('$(PkgVideoLAN_LibVLC_Windows)\build\x64\plugins\%(_CodeBlueGplVlcPlugin.RecursiveDir)%(_CodeBlueGplVlcPlugin.Filename)%(_CodeBlueGplVlcPlugin.Extension)')">
+        <Link>libvlc\win-x64\plugins\%(_CodeBlueGplVlcPlugin.RecursiveDir)%(_CodeBlueGplVlcPlugin.Filename)%(_CodeBlueGplVlcPlugin.Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
 
 </Project>
