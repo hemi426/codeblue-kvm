@@ -14,8 +14,9 @@ internal sealed class MainForm : Form
     private const uint VK_RETURN = 0x0D;
     private const uint VK_APPS = 0x5D; // Menu key: releases capture
 
-    private static readonly (byte R, byte G, byte B) LedConnected = (0, 64, 0);
-    private static readonly (byte R, byte G, byte B) LedIdle = (0, 0, 64);
+    // Full-scale colours; SetLed() scales them by the LED % setting.
+    private static readonly (byte R, byte G, byte B) LedConnected = (0, 255, 0);
+    private static readonly (byte R, byte G, byte B) LedIdle = (0, 0, 255);
 
     private readonly ViewerSettings _settings = ViewerSettings.Load();
 
@@ -25,7 +26,7 @@ internal sealed class MainForm : Form
 
     private readonly FlowLayoutPanel _toolbar;
     private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox;
-    private readonly NumericUpDown _cachingBox;
+    private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
     private readonly StatusStrip _statusStrip;
     private readonly ToolStripStatusLabel _status;
@@ -80,6 +81,11 @@ internal sealed class MainForm : Form
             Minimum = 0, Maximum = 2000, Increment = 10, Width = 70,
             Margin = new Padding(2, 4, 2, 4),
         };
+        _ledBox = new NumericUpDown
+        {
+            Minimum = 0, Maximum = 100, Increment = 5, Width = 60,
+            Margin = new Padding(2, 4, 2, 4),
+        };
         _captureButton = MakeButton("Capture", (_, _) => StartCapture());
         _cadButton = MakeButton("Ctrl+Alt+Del", (_, _) => SendCtrlAltDel());
         var snapshotButton = MakeButton("Snapshot", (_, _) => TakeSnapshot());
@@ -102,6 +108,7 @@ internal sealed class MainForm : Form
             MakeLabel("Size"), _sizeBox,
             MakeLabel("FPS"), _fpsBox,
             MakeLabel("Cache ms"), _cachingBox,
+            MakeLabel("LED %"), _ledBox,
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
         ]);
 
@@ -121,6 +128,8 @@ internal sealed class MainForm : Form
         SelectItem(_sizeBox, _settings.Size);
         SelectItem(_fpsBox, _settings.Fps);
         _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
+        _ledBox.Value = Math.Clamp(_settings.LedBrightnessPercent, 0, 100);
+        _ledBox.ValueChanged += (_, _) => SetLed(LedConnected); // live preview while connected
 
         Deactivate += (_, _) => StopCapture();
         FormClosing += (_, _) => { Disconnect(); SaveSettings(); };
@@ -212,6 +221,7 @@ internal sealed class MainForm : Form
         _settings.Size = _sizeBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.Fps = _fpsBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.CachingMs = (int)_cachingBox.Value;
+        _settings.LedBrightnessPercent = (int)_ledBox.Value;
         _settings.Save();
     }
 
@@ -260,7 +270,7 @@ internal sealed class MainForm : Form
                     {
                         _linkPort = port;
                         _link.Faulted += ex => PostToUi(() => OnLinkFault(ex));
-                        _link.SetStatusLed(LedConnected.R, LedConnected.G, LedConnected.B);
+                        SetLed(LedConnected);
                     }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
@@ -282,7 +292,7 @@ internal sealed class MainForm : Form
         if (_link is not null)
         {
             _link.ReleaseAll();
-            _link.SetStatusLed(LedIdle.R, LedIdle.G, LedIdle.B);
+            SetLed(LedIdle);
             _link.Dispose(); // drains the queue, so the two commands above go out first
             _link = null;
             _linkPort = null;
@@ -293,6 +303,15 @@ internal sealed class MainForm : Form
             _videoRunning = false;
         }
         UpdateUi();
+    }
+
+    /// <summary>Sends a status colour scaled by the LED % setting (0 turns the LED off).</summary>
+    private void SetLed((byte R, byte G, byte B) color)
+    {
+        if (_link is null) return;
+        int percent = (int)_ledBox.Value;
+        byte Scale(byte v) => (byte)((v * percent + 50) / 100);
+        _link.SetStatusLed(Scale(color.R), Scale(color.G), Scale(color.B));
     }
 
     private void OnLinkFault(Exception ex)
