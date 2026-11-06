@@ -13,7 +13,7 @@
 
     Components:
       viewer    .NET SDK (version from global.json) and Git
-      firmware  ESP-IDF toolchain (not yet available; the firmware is still being written)
+      firmware  Python, Git, ESP-IDF (version from firmware/IDF_VERSION) and its esp32s3 toolchain
 
 .PARAMETER Component
     Which part to set up: all (default), viewer, or firmware.
@@ -25,8 +25,19 @@
     Do not prompt; install whatever is missing and accept winget package agreements.
     Intended for unattended use such as CI.
 
+.PARAMETER IdfVersion
+    ESP-IDF release tag to set up, such as v6.0.3. Defaults to the tested version in
+    firmware/IDF_VERSION. 'latest' uses the newest ESP-IDF release instead; that is
+    EXPERIMENTAL and the firmware may not build with it.
+
+.PARAMETER IdfRoot
+    Folder for ESP-IDF checkouts, one subfolder per version. Default: ~\esp
+
 .EXAMPLE
     .\scripts\bootstrap-windows.ps1 -CheckOnly
+
+.EXAMPLE
+    .\scripts\bootstrap-windows.ps1 -Component firmware -IdfVersion latest
 
 .EXAMPLE
     .\scripts\bootstrap-windows.ps1 -Component viewer
@@ -38,7 +49,14 @@ param(
 
     [switch]$CheckOnly,
 
-    [switch]$Yes
+    [switch]$Yes,
+
+    # ESP-IDF release tag. Defaults to the known-good version in firmware/IDF_VERSION.
+    # 'latest' uses the newest release: EXPERIMENTAL, builds are not guaranteed.
+    [string]$IdfVersion,
+
+    # Where ESP-IDF checkouts live (one folder per version).
+    [string]$IdfRoot = (Join-Path $HOME 'esp')
 )
 
 Set-StrictMode -Version Latest
@@ -209,11 +227,121 @@ function Invoke-ViewerTestBuild {
 
 # ---------------------------------------------------------------- firmware
 
+$IdfMinPython = [version]'3.10'
+
+function Resolve-IdfVersion {
+    if ($IdfVersion -eq 'latest') {
+        $tag = (Invoke-RestMethod 'https://api.github.com/repos/espressif/esp-idf/releases/latest').tag_name
+        Write-Host "  Using latest ESP-IDF release $tag (EXPERIMENTAL: not the tested version)." -ForegroundColor Yellow
+        return $tag
+    }
+    if ($IdfVersion) { return $IdfVersion }
+    return (Get-Content -Path (Join-Path $RepoRoot 'firmware\IDF_VERSION') -TotalCount 1).Trim()
+}
+
+function Test-Python {
+    # Check plain 'python', because that is what ESP-IDF's install.ps1 runs.
+    # (The 'py' launcher can report a different, older interpreter.)
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $out = & python --version 2>&1
+        if ($out -match 'Python (\d+\.\d+)') {
+            $ver = [version]$Matches[1]
+            $where = $cmd.Source
+            if ($ver -ge $IdfMinPython) {
+                return [pscustomobject]@{ Name = 'Python'; Ok = $true; State = 'OK'; Detail = "$ver ($where)"; WingetId = 'Python.Python.3.12' }
+            }
+            return [pscustomobject]@{ Name = 'Python'; Ok = $false; State = 'OLD'; Detail = "found $ver at $where; need $IdfMinPython+"; WingetId = 'Python.Python.3.12' }
+        }
+    }
+    return [pscustomobject]@{ Name = 'Python'; Ok = $false; State = 'MISSING'; Detail = "need $IdfMinPython+"; WingetId = 'Python.Python.3.12' }
+}
+
+# Returns the tag an ESP-IDF checkout is at, or $null.
+function Get-IdfCheckoutTag([string]$Path) {
+    if (-not (Test-Path (Join-Path $Path 'tools\idf.py'))) { return $null }
+    $tag = & git -C $Path describe --tags --exact-match 2>$null
+    if ($LASTEXITCODE -eq 0) { return $tag.Trim() }
+    return 'unknown'
+}
+
+function Test-IdfToolchain([string]$Tag) {
+    # install.ps1 puts the esp32s3 compiler and a version-specific Python env under ~\.espressif.
+    $tools = if ($env:IDF_TOOLS_PATH) { $env:IDF_TOOLS_PATH } else { Join-Path $HOME '.espressif' }
+    $mm = if ($Tag -match '^v(\d+\.\d+)') { $Matches[1] } else { '' }
+    $compiler = Test-Path (Join-Path $tools 'tools\xtensa-esp-elf')
+    $pyenv = @(Get-ChildItem (Join-Path $tools 'python_env') -Directory -Filter "idf${mm}_py*" -ErrorAction SilentlyContinue).Count -gt 0
+    return ($compiler -and $pyenv)
+}
+
 function Invoke-FirmwareSetup {
     Write-Host ""
     Write-Host "Firmware (ESP-IDF)" -ForegroundColor White
-    Write-Status 'ESP-IDF' 'INFO' 'not set up by this script yet; the ESP-IDF firmware is still being written.'
+
+    $tag = Resolve-IdfVersion
+    $idfDir = Join-Path $IdfRoot "esp-idf-$tag"
+
+    # Respect an existing ESP-IDF at the right version, wherever it lives.
+    if ($env:IDF_PATH -and (Get-IdfCheckoutTag $env:IDF_PATH) -eq $tag) { $idfDir = $env:IDF_PATH }
+
+    $python = Test-Python
+    $git = Test-Git
+    $haveTag = Get-IdfCheckoutTag $idfDir
+    $sourceOk = $haveTag -eq $tag
+    $toolsOk = $sourceOk -and (Test-IdfToolchain $tag)
+
+    foreach ($c in @($git, $python)) { Write-Status $c.Name $c.State $c.Detail }
+    Write-Status "ESP-IDF $tag" $(if ($sourceOk) { 'OK' } elseif ($haveTag) { 'OLD' } else { 'MISSING' }) `
+        $(if ($haveTag -and -not $sourceOk) { "$idfDir is at $haveTag" } else { $idfDir })
+    Write-Status 'esp32s3 toolchain' $(if ($toolsOk) { 'OK' } else { 'MISSING' }) ''
+
+    if ($sourceOk -and $toolsOk) {
+        Show-IdfNextSteps $idfDir
+        return $true
+    }
+    if ($CheckOnly) { return $false }
+
+    if ($haveTag -and -not $sourceOk) {
+        Write-Host "  $idfDir exists but is at $haveTag. Move or delete it, then run this again." -ForegroundColor Yellow
+        return $false
+    }
+
+    $missing = @(@($git, $python) | Where-Object { -not $_.Ok })
+    Write-Host ""
+    Write-Host "  To set up:"
+    foreach ($m in $missing) { Write-Host "    - $($m.Name) with winget ($($m.WingetId))" }
+    if (-not $sourceOk) { Write-Host "    - Clone ESP-IDF $tag into $idfDir (about 1 GB)" }
+    Write-Host "    - Run ESP-IDF's install.ps1 for esp32s3 (downloads its toolchain into ~\.espressif)"
+    if (-not (Confirm-Step "  Go ahead?")) {
+        Write-Host "  Skipped. Nothing was changed."
+        return $false
+    }
+
+    if ($missing.Count -gt 0) {
+        if (-not (Test-Winget)) { throw "winget is not available; install $($missing.Name -join ', ') yourself, then run this again." }
+        foreach ($m in $missing) { Install-WithWinget $m.WingetId }
+        Update-SessionPath
+    }
+
+    if (-not $sourceOk) {
+        New-Item -ItemType Directory -Force -Path $IdfRoot | Out-Null
+        & git clone -b $tag --depth 1 --recursive --shallow-submodules `
+            https://github.com/espressif/esp-idf.git $idfDir | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "git clone of ESP-IDF $tag failed." }
+    }
+
+    & (Join-Path $idfDir 'install.ps1') esp32s3 | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "ESP-IDF install.ps1 failed." }
+
+    Show-IdfNextSteps $idfDir
     return $true
+}
+
+function Show-IdfNextSteps([string]$IdfDir) {
+    Write-Host ""
+    Write-Host "  ESP-IDF is ready. In each new terminal, activate it, then build:" -ForegroundColor Green
+    Write-Host "    . `"$IdfDir\export.ps1`""
+    Write-Host "    cd firmware; idf.py build"
 }
 
 # ---------------------------------------------------------------- main

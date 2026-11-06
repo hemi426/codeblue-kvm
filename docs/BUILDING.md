@@ -82,11 +82,59 @@ libVLC runtime, so expect it to be fairly large.
 
 ## Firmware (ESP32-S3)
 
-The ESP-IDF firmware is in progress. Planned toolchain handling:
+The firmware builds with ESP-IDF on Windows, Linux or macOS (the three hosts
+ESP-IDF supports). The firmware source is still being written; the toolchain
+setup is ready now.
 
-- A known-good ESP-IDF release recorded in `firmware/IDF_VERSION`, used by
-  default.
-- An experimental option to use the newest ESP-IDF release instead, for people
-  who prefer to stay current. Builds on it are not guaranteed.
-- Bootstrap support on all three hosts ESP-IDF supports: Windows
-  (`bootstrap-windows.ps1`) and Linux/macOS (`bootstrap-unix.sh`).
+### ESP-IDF version
+
+`firmware/IDF_VERSION` holds the tested ESP-IDF release (currently `v6.0.3`),
+and the bootstrap scripts use it by default. To build against the newest
+ESP-IDF release instead, pass `latest`. That is **experimental**: the firmware
+may not build, and bug reports should say which version was used.
+
+### Automated
+
+```powershell
+# Windows
+.\scripts\bootstrap-windows.ps1 -Component firmware -CheckOnly
+.\scripts\bootstrap-windows.ps1 -Component firmware
+.\scripts\bootstrap-windows.ps1 -Component firmware -IdfVersion latest   # experimental
+```
+
+```sh
+# Linux and macOS
+scripts/bootstrap-unix.sh --check-only
+scripts/bootstrap-unix.sh
+scripts/bootstrap-unix.sh --idf-version latest                          # experimental
+```
+
+Both scripts check first and change nothing until you agree. They clone
+ESP-IDF into `~/esp/esp-idf-<version>` (about 1 GB; change it with
+`-IdfRoot` / `--idf-root`), then run ESP-IDF's own installer for the esp32s3
+only, which puts its toolchain under `~/.espressif`. An ESP-IDF you already
+have is used as-is when `IDF_PATH` points at the right version.
+
+On Windows, missing Git or Python can be installed with winget. The Unix
+script never installs system packages; it prints the command for your
+package manager.
+
+### Building
+
+ESP-IDF has to be activated in each new terminal:
+
+```powershell
+. "$HOME\esp\esp-idf-v6.0.3\export.ps1"   # Windows
+```
+
+```sh
+. ~/esp/esp-idf-v6.0.3/export.sh            # Linux and macOS
+```
+
+Then, from the repo root:
+
+```sh
+cd firmware
+idf.py build
+idf.py -p COM10 flash monitor               # use your board's UART port
+```
