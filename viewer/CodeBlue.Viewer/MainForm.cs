@@ -14,6 +14,18 @@ internal sealed class MainForm : Form
     private const uint VK_RETURN = 0x0D;
     private const uint VK_APPS = 0x5D; // Menu key: releases capture
 
+    private const string ReleaseHint =
+        "Keyboard and mouse are going to the target. To release: press and release Ctrl+Alt (or the Menu key).";
+
+    // If the UI thread stops responding this long while captured, the watchdog frees the cursor.
+    private const long WatchdogTimeoutMs = 3000;
+
+    // libVLC debug output is capped; warnings and errors are always written.
+    private const long MaxVlcLogBytes = 20L * 1024 * 1024;
+
+    private static readonly string VlcLogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodeBlue", "libvlc.log");
+
     // Full-scale colours; SetLed() scales them by the LED % setting.
     private static readonly (byte R, byte G, byte B) LedConnected = (0, 255, 0);
     private static readonly (byte R, byte G, byte B) LedIdle = (0, 0, 255);
@@ -28,18 +40,29 @@ internal sealed class MainForm : Form
     private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox;
     private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
-    private readonly StatusStrip _statusStrip;
-    private readonly ToolStripStatusLabel _status;
+    private readonly Label _status;
+    private readonly Label _banner;
 
     private IKvmLink? _link;
     private string? _linkPort;
     private bool _videoRunning;
 
     private KeyboardHook? _hook;
-    private bool _captured;
+    private volatile bool _captured; // read by the watchdog thread
     private bool _cursorHidden;
     private bool _swallowEnterUp;
+    private bool _releaseChord; // Ctrl and Alt are down, and nothing else
     private readonly HashSet<byte> _held = [];
+
+    private readonly System.Windows.Forms.Timer _heartbeatTimer;
+    private long _uiHeartbeat = Environment.TickCount64;
+    private volatile bool _watchdogTripped;
+    private volatile bool _closing;
+
+    private StreamWriter? _vlcLog;
+    private readonly object _vlcLogLock = new();
+    private long _vlcLogBytes;
+    private long _lastErrorPost;
 
     private bool _fullscreen;
     private FormWindowState _savedState;
@@ -53,15 +76,24 @@ internal sealed class MainForm : Form
         MinimumSize = new Size(800, 500);
         KeyPreview = true;
 
-        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview");
+        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--verbose=2");
+        OpenVlcLog();
         _player = new MediaPlayer(_libVlc)
         {
             // Input belongs to us, not to VLC's own hotkeys and mouse handling.
             EnableKeyInput = false,
             EnableMouseInput = false,
         };
-        _video = new VideoView { Dock = DockStyle.Fill, BackColor = Color.Black, MediaPlayer = _player };
-        _video.MouseDown += (_, _) => StartCapture();
+        _player.Playing += (_, _) => WriteLog("player: playing");
+        _player.Vout += (_, e) => WriteLog($"player: video outputs = {e.Count}");
+        _player.EncounteredError += (_, _) =>
+        {
+            WriteLog("player: encountered error");
+            PostToUi(() => SetStatus($"Video playback failed. Details in {VlcLogPath}"));
+        };
+
+        // The player is attached in OnShown, once this control has its final window handle.
+        _video = new VideoView { Dock = DockStyle.Fill, BackColor = Color.Black };
         _video.Resize += (_, _) => { if (_captured) ClipCursorToVideo(); };
 
         _connectButton = MakeButton("Connect", (_, _) => ToggleConnect());
@@ -112,14 +144,34 @@ internal sealed class MainForm : Form
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
         ]);
 
-        _status = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-        _statusStrip = new StatusStrip();
-        _statusStrip.Items.Add(_status);
+        _status = new Label
+        {
+            Dock = DockStyle.Bottom,
+            AutoSize = false,
+            Height = Font.Height + 12,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(6, 0, 6, 0),
+            AutoEllipsis = true,
+        };
+        _banner = new Label
+        {
+            Dock = DockStyle.Top,
+            AutoSize = false,
+            Height = Font.Height + 14,
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = Color.FromArgb(255, 193, 7),
+            ForeColor = Color.Black,
+            Font = new Font(Font, FontStyle.Bold),
+            Text = ReleaseHint,
+            Visible = false,
+        };
 
-        // Dock order: the fill control is added first so the bars claim their edges.
+        // Dock order: controls added later claim the outer edges first, so the
+        // toolbar sits above the banner and the video fills what's left.
         Controls.Add(_video);
+        Controls.Add(_banner);
         Controls.Add(_toolbar);
-        Controls.Add(_statusStrip);
+        Controls.Add(_status);
 
         RefreshPorts();
         RefreshDevices();
@@ -134,7 +186,21 @@ internal sealed class MainForm : Form
         Deactivate += (_, _) => StopCapture();
         FormClosing += (_, _) => { Disconnect(); SaveSettings(); };
 
+        // Dead-man's switch for a hung UI thread: the timer proves the UI is alive,
+        // and the watchdog thread frees the cursor if it stops ticking during capture.
+        // (Windows itself drops a low-level keyboard hook that stops responding.)
+        _heartbeatTimer = new System.Windows.Forms.Timer { Interval = 250 };
+        _heartbeatTimer.Tick += (_, _) => Volatile.Write(ref _uiHeartbeat, Environment.TickCount64);
+        _heartbeatTimer.Start();
+        new Thread(WatchdogLoop) { IsBackground = true, Name = "CodeBlue capture watchdog" }.Start();
+
         UpdateUi();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        _video.MediaPlayer = _player;
     }
 
     // ---------------------------------------------------------------- UI helpers
@@ -199,15 +265,18 @@ internal sealed class MainForm : Form
 
         _captureButton.Enabled = _link is not null && !_captured;
         _cadButton.Enabled = _link is not null;
+        _banner.Visible = _captured;
 
-        _status.Text = _captured
-            ? "Captured: keyboard and mouse go to the target. Menu key releases; Ctrl+Alt+Enter toggles full screen."
+        SetStatus(_captured
+            ? "Captured. Release: Ctrl+Alt or Menu key. Full screen: Ctrl+Alt+Enter."
             : !running
                 ? "Not connected. F11: full screen, F12: snapshot."
                 : _link is null
                     ? $"Showing {_deviceBox.Text}. No keyboard/mouse link."
-                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click the video or Capture to take control.";
+                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click Capture to take control.");
     }
+
+    private void SetStatus(string text) => _status.Text = text;
 
     private void ShowError(string message) =>
         MessageBox.Show(this, message, "CodeBlue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -249,8 +318,15 @@ internal sealed class MainForm : Form
             _fpsBox.SelectedItem as string ?? CaptureOptions.Auto,
             (int)_cachingBox.Value);
 
-        using (var media = new Media(_libVlc, "dshow://", FromType.FromLocation, options.ToVlcOptions()))
-            _player.Play(media);
+        // Always point libVLC at the video control's current window handle.
+        _player.Hwnd = _video.Handle;
+
+        string[] vlcOptions = options.ToVlcOptions();
+        WriteLog($"codeblue: opening dshow:// {string.Join(' ', vlcOptions)}");
+        bool started;
+        using (var media = new Media(_libVlc, "dshow://", FromType.FromLocation, vlcOptions))
+            started = _player.Play(media);
+        WriteLog($"codeblue: Play() returned {started}");
         _videoRunning = true;
 
         string protocol = _protocolBox.SelectedItem as string ?? KvmLinks.VideoOnly;
@@ -284,6 +360,7 @@ internal sealed class MainForm : Form
 
         SaveSettings();
         UpdateUi();
+        if (!started) SetStatus($"Video could not start. Details in {VlcLogPath}");
     }
 
     private void Disconnect()
@@ -325,6 +402,18 @@ internal sealed class MainForm : Form
         ShowError($"The serial link was lost: {ex.Message}\n\nThe video is still running. Disconnect and reconnect to try again.");
     }
 
+    /// <summary>
+    /// Called on any device arrival/removal. If our COM port is gone (cable pulled,
+    /// board lost power), treat it as a link failure right away rather than waiting
+    /// for the next write to fail.
+    /// </summary>
+    private void CheckLinkPort()
+    {
+        if (_linkPort is null) return;
+        if (!SerialPort.GetPortNames().Contains(_linkPort, StringComparer.OrdinalIgnoreCase))
+            OnLinkFault(new IOException($"{_linkPort} was removed."));
+    }
+
     private void PostToUi(Action action)
     {
         if (IsHandleCreated && !IsDisposed)
@@ -352,6 +441,9 @@ internal sealed class MainForm : Form
             return;
         }
 
+        Volatile.Write(ref _uiHeartbeat, Environment.TickCount64);
+        _watchdogTripped = false;
+        _releaseChord = false;
         _captured = true;
         ClipCursorToVideo();
         if (!_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
@@ -372,6 +464,7 @@ internal sealed class MainForm : Form
 
         _held.Clear();
         _swallowEnterUp = false;
+        _releaseChord = false;
         _link?.ReleaseAll(); // never leave a key or button stuck down on the target
         UpdateUi();
     }
@@ -403,6 +496,7 @@ internal sealed class MainForm : Form
         {
             if (!ev.Up && _held.Any(HidUsageMap.IsCtrl) && _held.Any(HidUsageMap.IsAlt))
             {
+                _releaseChord = false; // Ctrl+Alt was used for something else
                 _swallowEnterUp = true;
                 PostToUi(ToggleFullscreen);
                 return true;
@@ -420,14 +514,27 @@ internal sealed class MainForm : Form
         if (ev.Up)
         {
             if (_held.Remove(usage)) _link.KeyUp(usage);
+
+            // Ctrl+Alt pressed together and released with no other key in between
+            // releases capture (the VMware convention). Every keyboard has it.
+            if (_releaseChord && IsCtrlOrAlt(usage))
+            {
+                _releaseChord = false;
+                PostToUi(StopCapture);
+            }
         }
         else if (_held.Add(usage))
         {
             // Windows' auto-repeat is dropped; the target generates its own repeats.
             _link.KeyDown(usage);
+            _releaseChord = _held.All(IsCtrlOrAlt)
+                && _held.Any(HidUsageMap.IsCtrl)
+                && _held.Any(HidUsageMap.IsAlt);
         }
         return true;
     }
+
+    private static bool IsCtrlOrAlt(byte usage) => HidUsageMap.IsCtrl(usage) || HidUsageMap.IsAlt(usage);
 
     protected override void WndProc(ref Message m)
     {
@@ -435,6 +542,10 @@ internal sealed class MainForm : Form
             RawMouse.Decode(m.LParam) is RawMouseEvent e)
         {
             HandleMouse(_link, e);
+        }
+        else if (m.Msg == NativeMethods.WM_DEVICECHANGE && _linkPort is not null)
+        {
+            PostToUi(CheckLinkPort);
         }
         base.WndProc(ref m);
     }
@@ -491,7 +602,7 @@ internal sealed class MainForm : Form
             _savedState = WindowState;
             _savedBounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             _toolbar.Visible = false;
-            _statusStrip.Visible = false;
+            _status.Visible = false;
             FormBorderStyle = FormBorderStyle.None;
             WindowState = FormWindowState.Normal;
             Bounds = Screen.FromControl(this).Bounds;
@@ -503,7 +614,7 @@ internal sealed class MainForm : Form
             Bounds = _savedBounds;
             WindowState = _savedState;
             _toolbar.Visible = true;
-            _statusStrip.Visible = true;
+            _status.Visible = true;
             _fullscreen = false;
         }
         if (_captured) PostToUi(ClipCursorToVideo);
@@ -520,11 +631,86 @@ internal sealed class MainForm : Form
             : "Snapshot failed.";
     }
 
+    // ---------------------------------------------------------------- Watchdog
+
+    private void WatchdogLoop()
+    {
+        while (!_closing)
+        {
+            Thread.Sleep(500);
+            if (!_captured || _watchdogTripped) continue;
+
+            long silentMs = Environment.TickCount64 - Volatile.Read(ref _uiHeartbeat);
+            if (silentMs > WatchdogTimeoutMs)
+            {
+                _watchdogTripped = true;
+                NativeMethods.ClipCursor(IntPtr.Zero);
+                WriteLog($"codeblue: UI unresponsive for {silentMs} ms while captured; cursor released");
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- libVLC log
+
+    /// <summary>Opens a fresh libVLC log for this run and hooks libVLC's log output to it.</summary>
+    private void OpenVlcLog()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(VlcLogPath)!);
+            _vlcLog = new StreamWriter(VlcLogPath, append: false) { AutoFlush = true };
+            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _vlcLog = null; // logging is a convenience; run without it
+        }
+        _libVlc.Log += OnVlcLog;
+    }
+
+    private void OnVlcLog(object? sender, LogEventArgs e)
+    {
+        WriteLog($"{e.Level,-7} {e.Module}: {e.Message}", e.Level);
+
+        if (e.Level == LogLevel.Error)
+        {
+            // libVLC can emit errors in bursts; update the status bar at most twice a second.
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref _lastErrorPost) > 500)
+            {
+                Interlocked.Exchange(ref _lastErrorPost, now);
+                string text = $"Video error: {e.Module}: {e.Message} (details in {VlcLogPath})";
+                PostToUi(() => SetStatus(text));
+            }
+        }
+    }
+
+    /// <summary>Thread-safe; called from libVLC threads as well as the UI thread.</summary>
+    private void WriteLog(string message, LogLevel level = LogLevel.Notice)
+    {
+        string line = $"{DateTime.Now:HH:mm:ss.fff} {message}";
+        lock (_vlcLogLock)
+        {
+            if (_vlcLog is null) return;
+            if (_vlcLogBytes > MaxVlcLogBytes && level < LogLevel.Warning) return;
+            _vlcLog.WriteLine(line);
+            _vlcLogBytes += line.Length + 2;
+        }
+    }
+
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        _closing = true;
+        _heartbeatTimer.Dispose();
         _video.MediaPlayer = null;
         _player.Dispose();
+        _libVlc.Log -= OnVlcLog;
         _libVlc.Dispose();
+        lock (_vlcLogLock)
+        {
+            _vlcLog?.Dispose();
+            _vlcLog = null;
+        }
         base.OnFormClosed(e);
     }
 }

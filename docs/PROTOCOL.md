@@ -10,6 +10,28 @@ The ESP-IDF firmware will use a framed binary protocol carrying HID usage codes
 and absolute pointer coordinates. It will be specified here before it is
 implemented.
 
+### Requirements
+
+These come from real failure modes and are not optional:
+
+- **Bidirectional heartbeat.** Both ends send a heartbeat at a fixed interval
+  (target: every 250 ms). If either side misses several in a row, it treats
+  the link as down.
+  - Viewer: releases capture immediately and says why.
+  - Firmware: releases every key and button on the target, so nothing is left
+    held down when the viewer crashes or the cable is pulled.
+- **Target status.** The firmware reports whether the target has enumerated
+  its USB keyboard and mouse (TinyUSB's mounted state), and reports changes as
+  they happen. The viewer shows it, and releases capture if the target goes
+  away (unplugged, rebooting, powered off).
+- **Firmware identity on connect.** Protocol version and firmware version, so
+  the viewer can refuse an incompatible board with a clear message instead of
+  sending into the void.
+
+The legacy protocol has none of these: its firmware never sends anything back,
+so the viewer cannot tell when the ESP32 reboots or the target is unplugged.
+The viewer can only detect the COM port itself disappearing.
+
 ## Legacy text protocol (deprecated)
 
 Compatible with the Arduino firmware from

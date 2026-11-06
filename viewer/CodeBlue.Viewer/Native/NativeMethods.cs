@@ -39,6 +39,15 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandle(string? lpModuleName);
 
+    // ---- Cursor and devices ----
+
+    public const int WM_DEVICECHANGE = 0x0219;
+
+    /// <summary>ClipCursor(NULL) frees the cursor; callable from any thread.</summary>
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ClipCursor(IntPtr lpRect);
+
     // ---- Raw input (mouse) ----
 
     public const int WM_INPUT = 0x00FF;
