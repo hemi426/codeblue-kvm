@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Central package versions for the viewer (NuGet Central Package Management).
+    Every dependency version lives here and nowhere else, so updating one is a
+    one-line change and project files never drift apart.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="LibVLCSharp.WinForms" Version="3.10.2" />
+    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
+    <PackageVersion Include="System.IO.Ports" Version="10.0.0" />
+    <PackageVersion Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+</Project>

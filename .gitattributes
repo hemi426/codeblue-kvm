@@ -1,0 +1,13 @@
+* text=auto
+
+*.sh    text eol=lf
+*.ps1   text eol=crlf
+*.cs    text
+*.csproj text
+*.props text
+*.md    text
+
+*.stl   binary
+*.step  binary
+*.FCStd binary
+*.png   binary
