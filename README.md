@@ -44,7 +44,7 @@ Early. What works today:
 ## Quick start (viewer)
 
 ```powershell
-git clone https://github.com/<you>/codeblue-kvm.git
+git clone https://github.com/hemi426/codeblue-kvm.git
 cd codeblue-kvm
 .\scripts\bootstrap-windows.ps1          # checks first, asks before installing
 dotnet run --project viewer\CodeBlue.Viewer
