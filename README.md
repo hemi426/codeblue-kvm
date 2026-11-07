@@ -24,14 +24,17 @@ needs no software and no network.
 
 Early. What works today:
 
-- **Viewer** (Windows): low-latency video, keyboard and mouse capture, full
-  screen, snapshots, Ctrl+Alt+Del, and the target's status (connected, asleep,
-  Caps Lock). Speaks the CodeBlue protocol, and the original Arduino firmware's
-  protocol (deprecated) for boards that still run it.
-- **Firmware** (ESP-IDF): a boot-protocol keyboard, mouse and absolute pointer
-  for the target, and a binary protocol with heartbeats both ways, so a
-  crashed viewer or pulled cable never leaves a key held down. Works in BIOS
-  setup screens. See [firmware/README.md](firmware/README.md).
+- **Viewer** (Windows): low-latency video, keyboard and mouse capture with an
+  absolute or relative pointer (see **Mouse** below), full screen, snapshots,
+  Ctrl+Alt+Del, the target's status (connected, asleep, Caps Lock), and
+  automatic reconnection if the board drops out. Speaks the CodeBlue protocol,
+  and the original Arduino firmware's protocol (deprecated) for boards that
+  still run it.
+- **Firmware** (ESP-IDF): a keyboard and a relative mouse that both work in
+  BIOS setup screens (boot protocol), plus an absolute pointer, for the
+  target; and a binary protocol with heartbeats both ways, so a crashed viewer
+  or pulled cable never leaves a key held down. See
+  [firmware/README.md](firmware/README.md).
 
 ## Repository layout
 
