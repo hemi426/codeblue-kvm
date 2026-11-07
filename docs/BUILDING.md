@@ -69,7 +69,7 @@ MRL 'dshow://'" in `%LOCALAPPDATA%\CodeBlue\libvlc.log`.
 
 | Property | Default | Effect |
 |----------|---------|--------|
-| `CodeBlueLegacyProtocol` | `true` | Includes the **deprecated** legacy text protocol. Build with `-p:CodeBlueLegacyProtocol=false` to leave it out. This option will be removed once the ESP-IDF firmware ships. |
+| `CodeBlueLegacyProtocol` | `true` | Includes the **deprecated** legacy text protocol. Build with `-p:CodeBlueLegacyProtocol=false` to leave it out. Only needed for boards still running the original Arduino firmware; this option will be removed in a future release. |
 
 ### Publishing a standalone build
 
@@ -83,8 +83,8 @@ libVLC runtime, so expect it to be fairly large.
 ## Firmware (ESP32-S3)
 
 The firmware builds with ESP-IDF on Windows, Linux or macOS (the three hosts
-ESP-IDF supports). The firmware source is still being written; the toolchain
-setup is ready now.
+ESP-IDF supports). Board presets, logging and testing are covered in
+[../firmware/README.md](../firmware/README.md).
 
 ### ESP-IDF version
 
@@ -142,5 +142,15 @@ Then:
 ```sh
 cd firmware
 idf.py build
-idf.py -p COM10 flash monitor               # use your board's UART port
+idf.py -p COM10 flash                       # use your board's UART port
 ```
+
+For another board revision, add `-DBOARD=devkitc-v1.1` (see
+`firmware/boards/`). When switching boards, or after pulling changes to the
+build defaults, delete `firmware/sdkconfig` first; the build stops with that
+instruction if it notices a mismatch.
+
+The UART port carries the viewer's protocol once the firmware is up, so
+`idf.py monitor` shows only the start-up log. To check a freshly flashed
+board, run `python tools/cb_test.py COM10 info` from the repo root; it
+prints the firmware version and the target's status.

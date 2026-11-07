@@ -122,33 +122,66 @@ the target indefinitely.
 | `0x31` | `LED_BRIGHTNESS` | `percent` u8 (0 to 100), `persist` u8 (0 or 1) |
 | `0x40` | `RELEASE_ALL` | none |
 
-- **`SESSION_CONFIG`:** sets the liveness timeout for this session, on both
-  sides. The device clamps it to 100 to 60000 ms. It lasts until the next
-  `HELLO` or timeout. The viewer asks for a long timeout (such as 30000 ms)
-  when a debugger is attached or a debug setting is on, so breakpoints don't
-  end the session, and otherwise leaves the default.
-- **`KEYBOARD`:** the complete set of held keys. `modifiers` is the standard
-  HID modifier byte (bit 0 Left Ctrl through bit 7 Right GUI); `usages` are
-  HID Keyboard/Keypad page usages for every other held key, in any order. With
-  more than six non-modifier keys held, the host sends six and the device
-  reports nothing extra. An empty set (`count` 0, `modifiers` 0) releases
-  everything.
-- **`MOUSE_ABS`:** `x` and `y` run from 0 to 32767 across the target's whole
-  screen. `buttons`: bit 0 left, bit 1 right, bit 2 middle, bit 3 back,
-  bit 4 forward. `wheel` and `pan` are one-shot detents, applied once.
-- **`MOUSE_REL`:** movement since the last message. The device splits large
-  deltas into as many HID reports as needed. Same `buttons`, `wheel` and
-  `pan` as `MOUSE_ABS`.
-- **`LED_BRIGHTNESS`:** scales every colour the device shows, including its own
-  status colours. With `persist` 1, the device saves the value in flash, so it
-  also applies from power-on; it skips the write if the stored value is
-  already the same. The board is the source of truth: `INFO` reports the
-  current value, and the viewer shows that rather than a remembered one.
-  While the user adjusts it, the viewer sends `persist` 0 previews, then one
-  `persist` 1 about a second after the last change, so flash is written once
-  per adjustment. The firmware's built-in default (a build setting) is 5%.
-- **`RELEASE_ALL`:** releases every key and button immediately. The host sends
-  it whenever capture ends.
+#### `SESSION_CONFIG`
+
+Sets the liveness timeout for this session, on both sides. The device clamps
+it to 100 to 60000 ms. It lasts until the next `HELLO` or timeout. The viewer
+asks for a long timeout (30000 ms) when a debugger is attached, so
+breakpoints don't end the session, and otherwise leaves the default.
+
+#### `KEYBOARD`
+
+The complete set of held keys. `usages` are HID Keyboard/Keypad page usages
+for every held key other than the modifiers, in any order. With more than six
+held, the host sends six and the device reports nothing extra. An empty set
+(`count` 0, `modifiers` 0) releases everything.
+
+`modifiers` is the standard HID modifier byte:
+
+| Bit | Key | Bit | Key |
+|-----|-----|-----|-----|
+| 0 | Left Ctrl | 4 | Right Ctrl |
+| 1 | Left Shift | 5 | Right Shift |
+| 2 | Left Alt | 6 | Right Alt |
+| 3 | Left GUI (Windows, Cmd) | 7 | Right GUI |
+
+#### `MOUSE_ABS` and `MOUSE_REL`
+
+`MOUSE_ABS` places the pointer: `x` and `y` run from 0 to 32767 across the
+target's whole screen. `MOUSE_REL` moves it by `dx`, `dy` since the last
+message; the device splits large deltas into as many HID reports as needed.
+See "Mouse modes" below for which one the viewer sends.
+
+Both carry the complete button state, and `wheel` and `pan` as one-shot
+detents (applied once, positive is away from the user and to the right):
+
+| Bit | Button |
+|-----|--------|
+| 0 | Left |
+| 1 | Right |
+| 2 | Middle |
+| 3 | Back |
+| 4 | Forward |
+
+Buttons belong to whichever message type was sent last: switching from one to
+the other releases any buttons held on the other device.
+
+#### `LED_BRIGHTNESS`
+
+Scales every colour the device shows, including its own status colours. With
+`persist` 1, the device saves the value in flash, so it also applies from
+power-on; it skips the write if the stored value is already the same.
+
+The board is the source of truth: `INFO` reports the current value, and the
+viewer shows that rather than a remembered one. While the user adjusts it,
+the viewer sends `persist` 0 previews, then one `persist` 1 about a second
+after the last change, so flash is written once per adjustment. The
+firmware's built-in default (a build setting) is 5%.
+
+#### `RELEASE_ALL`
+
+Releases every key and button immediately. The host sends it whenever
+capture ends.
 
 ### Messages: device to host
 
@@ -159,47 +192,79 @@ the target indefinitely.
 | `0x90` | `TARGET_STATUS` | `flags` u8, `kbd_leds` u8 |
 | `0xE0` | `ERROR` | `code` u8, `detail` u8 |
 
-- **`INFO`:** the host refuses a `protocol_major` it doesn't support, naming
-  both versions in the message. `capabilities` bits: 0 absolute mouse,
-  1 relative mouse, 2 persistent settings, 3 VBUS sense (see below).
-  `led_brightness` is the current brightness percentage. `board` is a short
-  human-readable name such as `ESP32-S3-DevKitC-1`.
-- **`TARGET_STATUS`:** sent after `INFO`, whenever anything in it changes, and
-  at least once a second.
-  - `flags` bit 0 `mounted`: the target has enumerated the device.
-  - Bit 1 `suspended`: the USB bus is suspended (see below).
-  - Bit 2 `kbd_boot`: the keyboard is in boot protocol.
-  - Bit 3 `mouse_boot`: the mouse is in boot protocol (see below).
-  - Bit 4 `remote_wakeup`: the target has enabled remote wakeup, so a
-    keypress can wake it.
-  - Bit 5 `vbus_present`: the target is supplying USB power. Meaningful only
-    when `INFO` reports the VBUS sense capability; otherwise always 0.
-  - `kbd_leds`: the target's own Num Lock (bit 0), Caps Lock (bit 1) and
-    Scroll Lock (bit 2) state, from its HID output report, so the viewer can
-    show the target's Caps Lock, not the host's.
+#### `INFO`
 
-**Asleep or unplugged.** In USB the target does all the talking: a device
-speaks only when polled. A sleeping target suspends the bus (no polling at
-all), and a pulled cable leaves the bus silent too, so the board sees both as
-`suspended`. The only physical difference is USB power: a sleeping PC
-usually keeps it on, a pulled cable doesn't. A board with VBUS sense can tell
-them apart; without it, the viewer says "asleep or disconnected". Even VBUS
-isn't conclusive, since some PCs cut USB power when fully off or hibernating.
+The device's answer to `HELLO`. The host refuses a `protocol_major` it
+doesn't support, naming both versions in the message. `led_brightness` is
+the current brightness percentage. `board` is a short human-readable name
+such as `ESP32-S3-DevKitC-1 v1.0`.
 
-**What each side does:**
+`capabilities`:
 
-- `suspended` 1: the device drops all held input (it cannot send reports
+| Bit | Meaning |
+|-----|---------|
+| 0 | Absolute pointer (`MOUSE_ABS`) |
+| 1 | Relative mouse (`MOUSE_REL`) |
+| 2 | Persistent settings (`LED_BRIGHTNESS` with `persist`) |
+| 3 | VBUS sense (see "VBUS sense" below) |
+
+#### `TARGET_STATUS`
+
+Sent after `INFO`, whenever anything in it changes, and at least once a
+second.
+
+`flags`:
+
+| Bit | Name | Meaning |
+|-----|------|---------|
+| 0 | `mounted` | The target has enumerated the device. |
+| 1 | `suspended` | The USB bus is suspended: the target is asleep or unplugged (see below). |
+| 2 | `kbd_boot` | The keyboard is in boot protocol. |
+| 3 | `mouse_boot` | The mouse is in boot protocol (see "Mouse modes"). |
+| 4 | `remote_wakeup` | The target has enabled remote wakeup, so a keypress can wake it. |
+| 5 | `vbus_present` | The target is supplying USB power. Always 0 unless `INFO` reports VBUS sense. |
+
+`kbd_leds`, the target's own lock-key state from its HID output report, so
+the viewer can show the target's Caps Lock rather than the host's:
+
+| Bit | LED |
+|-----|-----|
+| 0 | Num Lock |
+| 1 | Caps Lock |
+| 2 | Scroll Lock |
+
+#### `ERROR`
+
+For diagnostics only; the host logs it and carries on.
+
+| Code | Meaning | `detail` |
+|------|---------|----------|
+| 1 | Unknown message type | The type |
+| 2 | Payload too short | The type |
+| 3 | USB report could not be sent (not yet sent by the firmware) | 0 |
+
+### Asleep or unplugged
+
+In USB the target does all the talking: a device speaks only when polled. A
+sleeping target suspends the bus (no polling at all), and a pulled cable
+leaves the bus silent too, so the board sees both as `suspended`. The only
+physical difference is USB power: a sleeping PC usually keeps it on, a
+pulled cable doesn't. A board with VBUS sense can tell them apart; without
+it, the viewer says "asleep or disconnected". Even VBUS isn't conclusive,
+since some PCs cut USB power when fully off or hibernating.
+
+What each side does:
+
+- **`suspended` 1:** the device drops all held input (it cannot send reports
   while suspended anyway). The host **keeps capture**, so a keypress can wake
-  the target, and shows "Target asleep or disconnected". The usual capture
-  exits still work.
-- Wake on input: while `suspended` and `remote_wakeup` are both 1, the first
-  `KEYBOARD` or `MOUSE_*` message with a key or button pressed makes the
-  device signal remote wakeup, as a real keyboard would. Once the target
+  the target, and shows "asleep or disconnected". The usual capture exits
+  still work.
+- **Wake on input:** while `suspended` and `remote_wakeup` are both 1, the
+  first `KEYBOARD` or `MOUSE_*` message with a key or button pressed makes
+  the device signal remote wakeup, as a real keyboard would. Once the target
   resumes, the next state message applies normally.
-- `mounted` 0: the target has dropped the device; the host releases capture.
-- **`ERROR`:** for diagnostics only; the host logs it and carries on.
-  Codes: 1 unknown message type (`detail` = the type), 2 bad payload length
-  (`detail` = the type), 3 USB report could not be sent.
+- **`mounted` 0:** the target has dropped the device; the host releases
+  capture.
 
 ### USB side (informative)
 
@@ -210,6 +275,8 @@ The device presents one composite USB device to the target:
 - A **relative mouse** supporting the boot protocol, for the same reason.
 - An **absolute pointer** (0 to 32767 on both axes), so clicks land exactly
   where they are aimed in the viewer.
+
+#### Mouse modes
 
 Boot-protocol mice can only report relative movement, and some firmware setup
 screens ignore absolute pointers entirely. The viewer has a mouse mode
