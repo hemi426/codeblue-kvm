@@ -151,6 +151,8 @@ class Board:
         self.lock = threading.Lock()
         self.info = None
         self.status = None
+        self.printed_status = None
+        self.announced = False  # status changes print only after the board line
         self.last_rx = 0.0
         self.heartbeats = True
         self.got_info = threading.Event()
@@ -182,9 +184,9 @@ class Board:
                              board=p[8:].decode("utf-8", "replace"))
             self.got_info.set()
         elif t == TARGET_STATUS and len(p) >= 2:
-            if (p[0], p[1]) != self.status:
-                print(f"  target: {describe_status(p[0], p[1])}")
             self.status = (p[0], p[1])
+            if self.announced:
+                self._print_status()
         elif t == ERROR and len(p) >= 2:
             print(f"  board error: {ERRORS.get(p[0], p[0])} (detail 0x{p[1]:02X})")
         elif t == DEV_HEARTBEAT:
@@ -192,6 +194,11 @@ class Board:
                 print("  (heartbeat)")
         else:
             print(f"  unexpected message 0x{t:02X}: {p.hex(' ')}")
+
+    def _print_status(self):
+        if self.status is not None and self.status != self.printed_status:
+            self.printed_status = self.status
+            print(f"  target: {describe_status(*self.status)}")
 
     def _heartbeat(self):
         while not self.stop.is_set():
@@ -213,6 +220,8 @@ class Board:
                     return False
                 threading.Thread(target=self._heartbeat, daemon=True).start()
                 time.sleep(0.05)  # let TARGET_STATUS arrive
+                self.announced = True
+                self._print_status()
                 return True
         print("No CodeBlue firmware found on this port.")
         return False

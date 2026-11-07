@@ -7,7 +7,7 @@ which works in HID terms: keyboard usage IDs, mouse buttons and deltas.
 ## Binary protocol, version 1 (draft)
 
 **Status: draft.** Implemented by the ESP-IDF firmware (0.1.0), the viewer
-(keyboard and relative mouse so far) and `tools/cb_test.py`. Until both ends implement it,
+and `tools/cb_test.py`. Until both ends implement it,
 details may change without a version bump.
 
 ### Requirements

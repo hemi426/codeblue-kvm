@@ -38,7 +38,20 @@ internal interface IKvmLink : IDisposable
     void KeyDown(byte usage);
     void KeyUp(byte usage);
 
+    /// <summary>True if the board offers an absolute pointer (MouseMoveAbsolute).</summary>
+    bool SupportsAbsolute { get; }
+
+    /// <summary>
+    /// Whether buttons and the wheel go to the absolute pointer (true) or the
+    /// relative mouse (false). Ignored by links without an absolute pointer.
+    /// </summary>
+    bool AbsoluteMouse { get; set; }
+
     void MouseMoveRelative(int dx, int dy);
+
+    /// <summary>Moves the absolute pointer; 0 to 32767 on each axis spans the target's screen.</summary>
+    void MouseMoveAbsolute(int x, int y);
+
     void MouseButton(TargetMouseButton button, bool down);
 
     /// <summary>Wheel movement in detents (positive = away from the user).</summary>

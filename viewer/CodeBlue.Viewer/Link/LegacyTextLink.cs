@@ -52,6 +52,10 @@ internal sealed class LegacyTextLink : IKvmLink
 
     public void Heartbeat() { /* no heartbeat in this protocol */ }
 
+    public bool SupportsAbsolute => false;
+    public bool AbsoluteMouse { get => false; set { } }
+    public void MouseMoveAbsolute(int x, int y) { /* relative only */ }
+
     public LegacyTextLink(SerialTransport transport)
     {
         _transport = transport;

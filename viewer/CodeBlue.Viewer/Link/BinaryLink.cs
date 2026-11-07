@@ -27,7 +27,7 @@ internal sealed class BinaryLink : IKvmLink
     private static class Msg
     {
         public const byte Hello = 0x01, Heartbeat = 0x02, SessionConfig = 0x03;
-        public const byte Keyboard = 0x10, MouseRel = 0x21;
+        public const byte Keyboard = 0x10, MouseAbs = 0x20, MouseRel = 0x21;
         public const byte Led = 0x30, LedBrightness = 0x31, ReleaseAll = 0x40;
         public const byte Info = 0x81, DeviceHeartbeat = 0x82, TargetStatus = 0x90, Error = 0xE0;
     }
@@ -45,6 +45,9 @@ internal sealed class BinaryLink : IKvmLink
     private byte _modifiers;
     private byte _buttons;
     private int _pendingX, _pendingY, _pendingWheel;
+    private int _absX = 16384, _absY = 16384;
+    private bool _absDirty;
+    private bool _absolute;
     private readonly System.Threading.Timer _motionTimer;
 
     private TargetStatus? _status;
@@ -52,6 +55,23 @@ internal sealed class BinaryLink : IKvmLink
     public string ProtocolName { get; private set; } = "CodeBlue";
     public TargetStatus? TargetStatus => _status;
     public int? LedBrightness { get; private set; }
+    public bool SupportsAbsolute { get; private set; }
+
+    public bool AbsoluteMouse
+    {
+        get { lock (_lock) return _absolute; }
+        set
+        {
+            lock (_lock)
+            {
+                if (_absolute == value) return;
+                _absolute = value && SupportsAbsolute;
+                // Held buttons move with the mode; the board releases them on the other device.
+                if (_absolute) _absDirty = true;
+                else SendMouseLocked(force: true);
+            }
+        }
+    }
 
     public event Action<Exception>? Faulted;
     public event Action<TargetStatus>? TargetStatusChanged;
@@ -136,6 +156,7 @@ internal sealed class BinaryLink : IKvmLink
                 string board = Encoding.UTF8.GetString(p, 8, p.Length - 8);
                 ProtocolName = $"CodeBlue {p[2]}.{p[3]}.{p[4]} ({board})";
                 LedBrightness = p[7];
+                SupportsAbsolute = (BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5)) & 0x0001) != 0;
                 Diagnostic?.Invoke($"board: {ProtocolName}, protocol {p[0]}.{p[1]}, " +
                                    $"capabilities 0x{BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5)):X4}, LED {p[7]}%");
                 _gotInfo.Set();
@@ -234,6 +255,19 @@ internal sealed class BinaryLink : IKvmLink
         }
     }
 
+    public void MouseMoveAbsolute(int x, int y)
+    {
+        x = Math.Clamp(x, 0, 32767);
+        y = Math.Clamp(y, 0, 32767);
+        lock (_lock)
+        {
+            if (x == _absX && y == _absY) return;
+            _absX = x;
+            _absY = y;
+            _absDirty = true;
+        }
+    }
+
     public void MouseButton(TargetMouseButton button, bool down)
     {
         byte bit = button switch
@@ -261,6 +295,11 @@ internal sealed class BinaryLink : IKvmLink
 
     private void SendMouseLocked(bool force)
     {
+        if (_absolute)
+        {
+            SendAbsoluteLocked(force);
+            return;
+        }
         if (!force && _pendingX == 0 && _pendingY == 0 && _pendingWheel == 0) return;
 
         // The board splits large deltas itself; i16 is plenty for 8 ms of motion.
@@ -278,6 +317,23 @@ internal sealed class BinaryLink : IKvmLink
         p[5] = (byte)wheel;
         p[6] = 0; // pan: not captured yet
         Send(Msg.MouseRel, p);
+    }
+
+    private void SendAbsoluteLocked(bool force)
+    {
+        if (!force && !_absDirty && _pendingWheel == 0) return;
+        sbyte wheel = (sbyte)Math.Clamp(_pendingWheel, -127, 127);
+        _pendingWheel -= wheel;
+        _pendingX = _pendingY = 0; // relative motion has no meaning here
+        _absDirty = false;
+
+        Span<byte> p = stackalloc byte[7];
+        BinaryPrimitives.WriteUInt16LittleEndian(p, (ushort)_absX);
+        BinaryPrimitives.WriteUInt16LittleEndian(p[2..], (ushort)_absY);
+        p[4] = _buttons;
+        p[5] = (byte)wheel;
+        p[6] = 0;
+        Send(Msg.MouseAbs, p);
     }
 
     public void ReleaseAll()

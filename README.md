@@ -64,6 +64,19 @@ See [docs/BUILDING.md](docs/BUILDING.md) for details.
 3. Click **Capture** (or press Ctrl+Alt+C) to send keyboard and mouse to the
    target. An amber banner shows while they are captured.
 
+**Mouse** sets how the pointer reaches the target (CodeBlue protocol only):
+
+- **Auto** (default): absolute, switching to relative when the target asks
+  for a basic "boot" mouse, as some BIOS setup screens do.
+- **Absolute:** the target's pointer goes exactly where yours is on the
+  picture, with no fighting the target's mouse acceleration.
+- **Relative:** an ordinary mouse. Use it for targets with more than one
+  monitor, where absolute positions span the whole desktop.
+
+If the board's cable is pulled or the board stops answering, the viewer
+releases capture, keeps the video running, and reconnects by itself when the
+board is back.
+
 | Key | Action |
 |-----|--------|
 | Ctrl+Alt+C (not captured) | Capture keyboard and mouse |

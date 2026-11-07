@@ -14,6 +14,7 @@ internal sealed class ViewerSettings
     public int CachingMs { get; set; } = 50;
     public int LedBrightnessPercent { get; set; } = 5;
     public bool NativeScale { get; set; }
+    public string MouseMode { get; set; } = "Auto";
 
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CodeBlue", "viewer.json");

@@ -25,6 +25,9 @@ internal sealed class MainForm : Form
     // libVLC debug output is capped; warnings and errors are always written.
     private const long MaxVlcLogBytes = 20L * 1024 * 1024;
 
+    // Mouse modes (see "Mouse modes" in docs/PROTOCOL.md).
+    private const string MouseAuto = "Auto", MouseAbsolute = "Absolute", MouseRelative = "Relative";
+
     private static readonly string VlcLogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodeBlue", "libvlc.log");
 
@@ -39,7 +42,7 @@ internal sealed class MainForm : Form
     private readonly VideoView _video;
 
     private readonly FlowLayoutPanel _toolbar;
-    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox;
+    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _mouseBox;
     private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly CheckBox _nativeBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
@@ -47,8 +50,14 @@ internal sealed class MainForm : Form
     private readonly Label _banner;
 
     private IKvmLink? _link;
-    private string? _linkPort;
+    private string? _linkPort, _linkProtocol;
+
+    // After the link is lost mid-session, the viewer keeps trying to get it back.
+    private readonly System.Windows.Forms.Timer _reconnectTimer;
+    private string? _reconnectPort, _reconnectProtocol, _reconnectReason;
+    private bool _reconnectInFlight;
     private bool _videoRunning;
+    private uint _videoWidth, _videoHeight; // 0 until the stream reports its size
 
     private KeyboardHook? _hook;
     private volatile bool _captured; // read by the watchdog thread
@@ -136,7 +145,10 @@ internal sealed class MainForm : Form
         var snapshotButton = MakeButton("Snapshot", (_, _) => TakeSnapshot());
         var fullscreenButton = MakeButton("Full screen", (_, _) => ToggleFullscreen());
         _nativeBox = new CheckBox { Text = "1:1 pixels", AutoSize = true, Margin = new Padding(10, 6, 2, 2) };
-        _nativeBox.CheckedChanged += (_, _) => ApplyScale();
+        _nativeBox.CheckedChanged += (_, _) => { ApplyScale(); if (_captured) ClipCursorToVideo(); };
+        _mouseBox = MakeCombo(100);
+        _mouseBox.Items.AddRange([MouseAuto, MouseAbsolute, MouseRelative]);
+        _mouseBox.SelectedIndexChanged += (_, _) => ApplyMouseMode();
 
         _toolbar = new FlowLayoutPanel
         {
@@ -156,6 +168,7 @@ internal sealed class MainForm : Form
             MakeLabel("FPS"), _fpsBox,
             MakeLabel("Cache ms"), _cachingBox,
             MakeLabel("LED %"), _ledBox,
+            MakeLabel("Mouse"), _mouseBox,
             _nativeBox,
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
         ]);
@@ -198,6 +211,7 @@ internal sealed class MainForm : Form
         _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
         _ledBox.Value = Math.Clamp(_settings.LedBrightnessPercent, 0, 100);
         _nativeBox.Checked = _settings.NativeScale;
+        SelectItem(_mouseBox, _settings.MouseMode); // falls back to the first item, Auto
         // While the value changes, preview it on the board; save it there once, a
         // second after the last change, so the board's flash is written once per adjustment.
         _ledSaveTimer = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -227,8 +241,14 @@ internal sealed class MainForm : Form
         {
             Volatile.Write(ref _uiHeartbeat, Environment.TickCount64);
             _link?.Heartbeat();
+            // Raw input can arrive just before Windows moves the cursor, so the
+            // last move of a gesture may be missed; this catches it up.
+            if (_captured && _link is { AbsoluteMouse: true } link) SendPointer(link);
         };
         _heartbeatTimer.Start();
+
+        _reconnectTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        _reconnectTimer.Tick += (_, _) => TryReconnect();
         new Thread(WatchdogLoop) { IsBackground = true, Name = "CodeBlue capture watchdog" }.Start();
 
         UpdateUi();
@@ -309,7 +329,9 @@ internal sealed class MainForm : Form
             : !running
                 ? "Not connected. F11: full screen, Ctrl+Alt+S or F12: snapshot, Ctrl+Alt+1: 1:1 pixels, Ctrl+Alt+C: capture."
                 : _link is null
-                    ? $"Showing {_deviceBox.Text}. No keyboard/mouse link."
+                    ? _reconnectPort is not null
+                        ? $"Showing {_deviceBox.Text}. Lost the board on {_reconnectPort}: {_reconnectReason}. Reconnecting..."
+                        : $"Showing {_deviceBox.Text}. No keyboard/mouse link."
                     : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}.{TargetText()} Click Capture (or press Ctrl+Alt+C) to take control.");
     }
 
@@ -332,6 +354,7 @@ internal sealed class MainForm : Form
         // The target dropped the device: nothing we send can arrive, so let go.
         // (A sleeping target keeps capture, so a keypress can wake it.)
         if (_captured && previous is { Mounted: true } && !status.Mounted) StopCapture();
+        ApplyMouseMode(); // Auto follows the target's boot-mouse request
         UpdateUi();
     }
 
@@ -351,6 +374,7 @@ internal sealed class MainForm : Form
         _settings.CachingMs = (int)_cachingBox.Value;
         _settings.LedBrightnessPercent = (int)_ledBox.Value;
         _settings.NativeScale = _nativeBox.Checked;
+        _settings.MouseMode = _mouseBox.SelectedItem as string ?? MouseAuto;
         _settings.Save();
     }
 
@@ -404,35 +428,8 @@ internal sealed class MainForm : Form
                 {
                     SetStatus($"Looking for a CodeBlue board on {port}...");
                     Cursor.Current = Cursors.WaitCursor; // the handshake can take up to two seconds
-                    _link = KvmLinks.Open(protocol, port);
-                    if (_link is not null)
-                    {
-                        _linkPort = port;
-                        var link = _link;
-                        TargetStatus? previous = link.TargetStatus;
-                        _link.Faulted += ex => PostToUi(() => OnLinkFault(ex));
-                        _link.Diagnostic += message => WriteLog($"codeblue: {message}");
-                        _link.TargetStatusChanged += status => PostToUi(() =>
-                        {
-                            if (_link != link) return; // a stale event from a link we've closed
-                            OnTargetStatus(status, previous);
-                            previous = status;
-                        });
-                        WriteLog($"codeblue: link open: {_link.ProtocolName} on {port}");
-
-                        // The board is the source of truth for its brightness, if it has one.
-                        if (_link.LedBrightness is int boardPercent)
-                        {
-                            _syncingLedBox = true;
-                            _ledBox.Value = Math.Clamp(boardPercent, 0, 100);
-                            _syncingLedBox = false;
-                        }
-                        else
-                        {
-                            _link.SetLedBrightness((int)_ledBox.Value, persist: false);
-                        }
-                        SetLed(LedConnected);
-                    }
+                    var link = KvmLinks.Open(protocol, port);
+                    if (link is not null) InstallLink(link, protocol, port);
                 }
                 catch (KvmLinkException ex)
                 {
@@ -452,8 +449,41 @@ internal sealed class MainForm : Form
         if (!started) SetStatus($"Video could not start. Details in {VlcLogPath}");
     }
 
+    /// <summary>Makes an open link the current one and hooks up its events.</summary>
+    private void InstallLink(IKvmLink link, string protocol, string port)
+    {
+        _link = link;
+        _linkPort = port;
+        _linkProtocol = protocol;
+        TargetStatus? previous = link.TargetStatus;
+        // Events from a link we've since closed are ignored.
+        link.Faulted += ex => PostToUi(() => { if (_link == link) OnLinkFault(ex); });
+        link.Diagnostic += message => WriteLog($"codeblue: {message}");
+        link.TargetStatusChanged += status => PostToUi(() =>
+        {
+            if (_link != link) return;
+            OnTargetStatus(status, previous);
+            previous = status;
+        });
+        WriteLog($"codeblue: link open: {link.ProtocolName} on {port}");
+
+        // The board is the source of truth for its brightness, if it has one.
+        if (link.LedBrightness is int boardPercent)
+        {
+            _syncingLedBox = true;
+            _ledBox.Value = Math.Clamp(boardPercent, 0, 100);
+            _syncingLedBox = false;
+        }
+        else
+        {
+            link.SetLedBrightness((int)_ledBox.Value, persist: false);
+        }
+        SetLed(LedConnected);
+    }
+
     private void Disconnect()
     {
+        StopReconnect();
         StopCapture();
         if (_link is not null)
         {
@@ -467,11 +497,13 @@ internal sealed class MainForm : Form
             _link.Dispose(); // drains the queue, so the two commands above go out first
             _link = null;
             _linkPort = null;
+            _linkProtocol = null;
         }
         if (_videoRunning)
         {
             _player.Stop();
             _videoRunning = false;
+            _videoWidth = _videoHeight = 0;
         }
         UpdateUi();
     }
@@ -488,7 +520,9 @@ internal sealed class MainForm : Form
         {
             string aspect = CaptureOptions.AspectOf(w, h);
             _player.AspectRatio = aspect;
+            (_videoWidth, _videoHeight) = (w, h);
             ApplyScale(); // re-apply to the new video output
+            if (_captured) ClipCursorToVideo();
             WriteLog($"codeblue: video is {w}x{h}; display aspect set to {aspect}");
         }
         else
@@ -513,12 +547,12 @@ internal sealed class MainForm : Form
     private void OnLinkFault(Exception ex)
     {
         if (_link is null) return;
-        string? port = _linkPort;
+        string? port = _linkPort, protocol = _linkProtocol;
         StopCapture();
         try { _link.Dispose(); } catch { /* already broken */ }
         _link = null;
         _linkPort = null;
-        UpdateUi();
+        _linkProtocol = null;
         WriteLog($"codeblue: link lost: {ex.GetType().Name}: {ex.Message}");
 
         // Windows reports a vanished USB serial port as "access denied" on the
@@ -526,12 +560,66 @@ internal sealed class MainForm : Form
         bool portGone = port is not null &&
             (ex is UnauthorizedAccessException ||
              !SerialPort.GetPortNames().Contains(port, StringComparer.OrdinalIgnoreCase));
-        string what = portGone
-            ? $"The board's serial port ({port}) went away. Was its cable unplugged?\n\n" +
-              "The video is still running. Plug the board back in, then Disconnect and Connect to carry on."
-            : $"The serial link was lost: {ex.Message}\n\n" +
-              "The video is still running. Disconnect and Connect to try again.";
-        ShowError(what);
+        string reason = portGone ? "its serial port went away (cable unplugged?)"
+            : ex is TimeoutException ? "it stopped responding"
+            : ex.Message;
+
+        if (_videoRunning && port is not null && protocol is not null)
+        {
+            // No dialog: keep the video up and quietly get the board back.
+            StartReconnect(protocol, port, reason);
+            UpdateUi();
+            return;
+        }
+        UpdateUi();
+        ShowError($"Lost the board: {reason}.");
+    }
+
+    private void StartReconnect(string protocol, string port, string reason)
+    {
+        _reconnectProtocol = protocol;
+        _reconnectPort = port;
+        _reconnectReason = reason;
+        _reconnectTimer.Start();
+    }
+
+    private void StopReconnect()
+    {
+        _reconnectTimer.Stop();
+        _reconnectProtocol = _reconnectPort = _reconnectReason = null;
+    }
+
+    /// <summary>One reconnect attempt, off the UI thread (the handshake can take two seconds).</summary>
+    private void TryReconnect()
+    {
+        if (_reconnectInFlight || _link is not null || _reconnectPort is not string port || _reconnectProtocol is not string protocol)
+            return;
+        if (!SerialPort.GetPortNames().Contains(port, StringComparer.OrdinalIgnoreCase))
+            return; // not back yet
+
+        _reconnectInFlight = true;
+        Task.Run(() =>
+        {
+            try { return KvmLinks.Open(protocol, port); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+            {
+                return null; // not ready yet; the timer tries again
+            }
+        }).ContinueWith(t => PostToUi(() =>
+        {
+            _reconnectInFlight = false;
+            IKvmLink? link = t.IsCompletedSuccessfully ? t.Result : null;
+            if (link is null) return;
+            if (_link is not null || _reconnectPort != port || !_videoRunning)
+            {
+                link.Dispose(); // the user disconnected or moved on meanwhile
+                return;
+            }
+            StopReconnect();
+            InstallLink(link, protocol, port);
+            WriteLog("codeblue: reconnected");
+            UpdateUi();
+        }), TaskScheduler.Default);
     }
 
     /// <summary>
@@ -577,7 +665,8 @@ internal sealed class MainForm : Form
         _watchdogTripped = false;
         _releaseChord = false;
         _captured = true;
-        ClipCursorToVideo();
+        _link.AbsoluteMouse = WantAbsolute();
+        ClipCursorToVideo(center: true);
         if (!_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
         UpdateUi();
     }
@@ -602,15 +691,87 @@ internal sealed class MainForm : Form
     }
 
     /// <summary>
-    /// Pins the hidden local pointer to the middle of the video. Raw input keeps
-    /// reporting motion, so the target pointer moves while ours stays put and
-    /// can never wander onto another window.
+    /// Keeps the hidden local pointer inside the video, so it can never wander
+    /// onto another window.
+    ///
+    /// Relative: pinned to the middle of the video. Raw input keeps reporting
+    /// motion, so the target pointer moves while ours stays put.
+    ///
+    /// Absolute: free to move over the picture, and its position on the picture
+    /// is sent to the target, so the target pointer sits exactly where ours is.
     /// </summary>
-    private void ClipCursorToVideo()
+    private void ClipCursorToVideo(bool center = false)
     {
-        var center = _video.PointToScreen(new Point(_video.ClientSize.Width / 2, _video.ClientSize.Height / 2));
-        Cursor.Position = center;
-        Cursor.Clip = new Rectangle(center, new Size(1, 1));
+        if (_link is { AbsoluteMouse: true } link)
+        {
+            var area = _video.RectangleToScreen(Rectangle.Intersect(PictureRect(), _video.ClientRectangle));
+            if (area.Width <= 0 || area.Height <= 0) return;
+            if (center || !area.Contains(Cursor.Position))
+                Cursor.Position = new Point(area.X + area.Width / 2, area.Y + area.Height / 2);
+            Cursor.Clip = area;
+            SendPointer(link);
+        }
+        else
+        {
+            var middle = _video.PointToScreen(new Point(_video.ClientSize.Width / 2, _video.ClientSize.Height / 2));
+            Cursor.Position = middle;
+            Cursor.Clip = new Rectangle(middle, new Size(1, 1));
+        }
+    }
+
+    /// <summary>
+    /// Where the picture is drawn inside the video control: fitted and centred,
+    /// or centred at 1:1 (and possibly larger than the control, i.e. cropped).
+    /// </summary>
+    private Rectangle PictureRect()
+    {
+        var c = _video.ClientRectangle;
+        if (_videoWidth == 0 || _videoHeight == 0 || c.Width == 0 || c.Height == 0) return c;
+        double scale = _nativeBox.Checked ? 1.0 : Math.Min((double)c.Width / _videoWidth, (double)c.Height / _videoHeight);
+        int w = (int)Math.Round(_videoWidth * scale), h = (int)Math.Round(_videoHeight * scale);
+        return new Rectangle((c.Width - w) / 2, (c.Height - h) / 2, w, h);
+    }
+
+    /// <summary>Maps a screen point to the target's 0-32767 absolute coordinates.</summary>
+    private (int X, int Y) ToTarget(Point screen)
+    {
+        var p = _video.PointToClient(screen);
+        var r = PictureRect();
+        int x = r.Width > 1 ? (int)Math.Round((p.X - r.X) * 32767.0 / (r.Width - 1)) : 16384;
+        int y = r.Height > 1 ? (int)Math.Round((p.Y - r.Y) * 32767.0 / (r.Height - 1)) : 16384;
+        return (Math.Clamp(x, 0, 32767), Math.Clamp(y, 0, 32767));
+    }
+
+    /// <summary>Sends the local pointer's position on the picture to the absolute pointer.</summary>
+    private void SendPointer(IKvmLink link)
+    {
+        var (x, y) = ToTarget(Cursor.Position);
+        link.MouseMoveAbsolute(x, y);
+    }
+
+    /// <summary>Whether the mouse setting, the board and the target call for the absolute pointer.</summary>
+    private bool WantAbsolute()
+    {
+        if (_link is not { SupportsAbsolute: true } link) return false;
+        return (_mouseBox.SelectedItem as string) switch
+        {
+            MouseAbsolute => true,
+            MouseRelative => false,
+            // Auto: absolute, unless the target put the mouse in boot protocol
+            // (typically BIOS setup screens), which only understands relative.
+            _ => link.TargetStatus is not { MouseBoot: true },
+        };
+    }
+
+    /// <summary>Switches mouse mode mid-capture when the setting or the target changes.</summary>
+    private void ApplyMouseMode()
+    {
+        if (!_captured || _link is null) return;
+        bool want = WantAbsolute();
+        if (_link.AbsoluteMouse == want) return;
+        _link.AbsoluteMouse = want;
+        ClipCursorToVideo(center: true);
+        WriteLog($"codeblue: mouse now {(want ? "absolute" : "relative")}");
     }
 
     /// <summary>Runs inside the keyboard hook: keep it fast, and only enqueue.</summary>
@@ -680,16 +841,21 @@ internal sealed class MainForm : Form
         {
             HandleMouse(_link, e);
         }
-        else if (m.Msg == NativeMethods.WM_DEVICECHANGE && _linkPort is not null)
+        else if (m.Msg == NativeMethods.WM_DEVICECHANGE)
         {
-            PostToUi(CheckLinkPort);
+            if (_linkPort is not null) PostToUi(CheckLinkPort);
+            else if (_reconnectPort is not null) PostToUi(TryReconnect); // the board may be back
         }
         base.WndProc(ref m);
     }
 
-    private static void HandleMouse(IKvmLink link, RawMouseEvent e)
+    private void HandleMouse(IKvmLink link, RawMouseEvent e)
     {
-        if (e.DeltaX != 0 || e.DeltaY != 0) link.MouseMoveRelative(e.DeltaX, e.DeltaY);
+        if (e.DeltaX != 0 || e.DeltaY != 0)
+        {
+            if (link.AbsoluteMouse) SendPointer(link);
+            else link.MouseMoveRelative(e.DeltaX, e.DeltaY);
+        }
 
         ushort f = e.ButtonFlags;
         if ((f & NativeMethods.RI_MOUSE_LEFT_BUTTON_DOWN) != 0) link.MouseButton(TargetMouseButton.Left, true);
@@ -763,7 +929,7 @@ internal sealed class MainForm : Form
             _status.Visible = true;
             _fullscreen = false;
         }
-        if (_captured) PostToUi(ClipCursorToVideo);
+        if (_captured) PostToUi(() => ClipCursorToVideo());
     }
 
     private void TakeSnapshot()
@@ -860,6 +1026,7 @@ internal sealed class MainForm : Form
         _closing = true;
         _heartbeatTimer.Dispose();
         _ledSaveTimer.Dispose();
+        _reconnectTimer.Dispose();
         _video.MediaPlayer = null;
         _player.Dispose();
         _libVlc.Log -= OnVlcLog;
