@@ -32,3 +32,14 @@ from `%LOCALAPPDATA%\CodeBlue\libvlc.log` after connecting:
 ```powershell
 Select-String -Path "$env:LOCALAPPDATA\CodeBlue\libvlc.log" -Pattern 'EnumDeviceCaps' | ForEach-Object Line
 ```
+
+## Tested targets
+
+What the target's firmware or OS accepted from the CodeBlue firmware
+(`firmware/`, protocol v1). "Report" or "boot" is the protocol the target put
+the keyboard in, as shown by `tools/cb_test.py`.
+
+| Target | Keyboard | Absolute pointer | Relative mouse | Notes |
+|--------|----------|------------------|----------------|-------|
+| Dell OptiPlex 5080, BIOS setup | Works (report) | Works | Works | F2 during POST enters setup. Num Lock LED reported. |
+| FreeBSD (console) | Works (report) | Enumerates (hms, "Tablet") | Enumerates (hms) | Caps Lock LED reported. |

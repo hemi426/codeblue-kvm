@@ -1,0 +1,4 @@
+# ESP32-S3-DevKitC-1 v1.0, and most clones (including the N8R2 clone the
+# project was developed on): RGB LED on GPIO48.
+CONFIG_CODEBLUE_BOARD_NAME="ESP32-S3-DevKitC-1 v1.0"
+CONFIG_CODEBLUE_LED_GPIO=48

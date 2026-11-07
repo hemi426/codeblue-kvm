@@ -1,4 +1,20 @@
-# Defaults for a fresh sdkconfig. Change settings with `idf.py menuconfig`;
-# the generated sdkconfig itself is not committed.
+# Defaults for a fresh sdkconfig, shared by every board. Board-specific
+# settings are in boards/<board>.defaults (see CMakeLists.txt). Change
+# settings with `idf.py menuconfig`; the generated sdkconfig itself is not
+# committed.
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# 1 ms ticks, so the serial-to-USB path never waits a 10 ms tick.
+CONFIG_FREERTOS_HZ=1000
+
+# The boot log stays on UART0 at 115200; the firmware then switches UART0 to
+# the protocol's 921600 (session.c). The native USB port belongs to TinyUSB,
+# so no secondary console on USB-Serial-JTAG.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# Keyboard, relative mouse, absolute pointer.
+CONFIG_TINYUSB_HID_COUNT=3
+# Needed to report a sleeping target and to wake it.
+CONFIG_TINYUSB_SUSPEND_CALLBACK=y
+CONFIG_TINYUSB_RESUME_CALLBACK=y

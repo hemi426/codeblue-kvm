@@ -6,8 +6,9 @@ which works in HID terms: keyboard usage IDs, mouse buttons and deltas.
 
 ## Binary protocol, version 1 (draft)
 
-**Status: draft, not yet implemented.** Used by the ESP-IDF firmware. Until
-both ends implement it, details may change without a version bump.
+**Status: draft.** Implemented by the ESP-IDF firmware (0.1.0) and
+`tools/cb_test.py`; not yet by the viewer. Until both ends implement it,
+details may change without a version bump.
 
 ### Requirements
 

@@ -1,0 +1,364 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+#include "usb_hid.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "esp_check.h"
+#include "esp_log.h"
+#include "esp_mac.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "tinyusb.h"
+#include "tinyusb_default_config.h"
+#include "tusb.h"
+
+static const char *TAG = "usb";
+
+/* ---- Descriptors ------------------------------------------------------- */
+
+enum { ITF_KBD, ITF_MOUSE, ITF_ABS, ITF_COUNT };
+enum { STR_LANG, STR_MANUFACTURER, STR_PRODUCT, STR_SERIAL, STR_KBD, STR_MOUSE, STR_ABS, STR_COUNT };
+
+#define EP_KBD   0x81
+#define EP_MOUSE 0x82
+#define EP_ABS   0x83
+#define EP_SIZE  8
+#define EP_INTERVAL_MS 1
+
+static const uint8_t s_report_kbd[] = { TUD_HID_REPORT_DESC_KEYBOARD() };
+static const uint8_t s_report_mouse[] = { TUD_HID_REPORT_DESC_MOUSE() };
+static const uint8_t s_report_abs[] = { TUD_HID_REPORT_DESC_ABSMOUSE() };
+
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + ITF_COUNT * TUD_HID_DESC_LEN)
+
+static const uint8_t s_config_desc[] = {
+    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(ITF_KBD, STR_KBD, HID_ITF_PROTOCOL_KEYBOARD, sizeof(s_report_kbd), EP_KBD, EP_SIZE, EP_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(ITF_MOUSE, STR_MOUSE, HID_ITF_PROTOCOL_MOUSE, sizeof(s_report_mouse), EP_MOUSE, EP_SIZE, EP_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(ITF_ABS, STR_ABS, HID_ITF_PROTOCOL_NONE, sizeof(s_report_abs), EP_ABS, EP_SIZE, EP_INTERVAL_MS),
+};
+
+static const tusb_desc_device_t s_device_desc = {
+    .bLength = sizeof(tusb_desc_device_t),
+    .bDescriptorType = TUSB_DESC_DEVICE,
+    .bcdUSB = 0x0200,
+    .bDeviceClass = 0x00, /* defined per interface */
+    .bDeviceSubClass = 0x00,
+    .bDeviceProtocol = 0x00,
+    .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+    .idVendor = CONFIG_CODEBLUE_USB_VID,
+    .idProduct = CONFIG_CODEBLUE_USB_PID,
+    .bcdDevice = 0x0100,
+    .iManufacturer = STR_MANUFACTURER,
+    .iProduct = STR_PRODUCT,
+    .iSerialNumber = STR_SERIAL,
+    .bNumConfigurations = 1,
+};
+
+static char s_serial[13]; /* the chip's MAC, so two boards on one target stay distinct */
+
+static const char *s_strings[STR_COUNT] = {
+    [STR_LANG] = (const char[]){ 0x09, 0x04 }, /* English (US) */
+    [STR_MANUFACTURER] = "CodeBlue",
+    [STR_PRODUCT] = "CodeBlue KVM",
+    [STR_SERIAL] = s_serial,
+    [STR_KBD] = "CodeBlue Keyboard",
+    [STR_MOUSE] = "CodeBlue Mouse",
+    [STR_ABS] = "CodeBlue Absolute Pointer",
+};
+
+/* ---- State --------------------------------------------------------------
+ * The session task writes the wanted state; usb_hid_poll() (session task)
+ * and the report-complete callback (TinyUSB task) send it. One mutex covers
+ * both, so a relative-mouse chunk is never sent twice.
+ */
+
+typedef struct {
+    uint8_t modifiers;
+    uint8_t keys[6];
+} kbd_state_t;
+
+typedef struct {
+    uint8_t buttons;
+    int32_t dx, dy; /* pending movement */
+    int16_t wheel, pan;
+} rel_state_t;
+
+typedef struct {
+    uint8_t buttons;
+    uint16_t x, y;
+    int16_t wheel, pan; /* pending detents */
+} abs_state_t;
+
+static SemaphoreHandle_t s_lock;
+
+static kbd_state_t s_kbd, s_kbd_sent;
+static rel_state_t s_rel;
+static uint8_t s_rel_sent_buttons;
+static abs_state_t s_abs;
+static uint8_t s_abs_sent_buttons;
+static uint16_t s_abs_sent_x, s_abs_sent_y;
+
+static volatile uint8_t s_kbd_leds;
+static volatile bool s_remote_wakeup_enabled;
+static volatile bool s_wake_sent;
+
+static int8_t clamp8(int32_t v)
+{
+    return (int8_t)(v > 127 ? 127 : v < -127 ? -127 : v);
+}
+
+static void clear_input_locked(void)
+{
+    memset(&s_kbd, 0, sizeof s_kbd);
+    memset(&s_rel, 0, sizeof s_rel);
+    s_abs.buttons = 0;
+    s_abs.wheel = s_abs.pan = 0;
+}
+
+/* Each pump_* sends at most one report for its interface. Called with s_lock held. */
+
+static void pump_kbd(void)
+{
+    if (memcmp(&s_kbd, &s_kbd_sent, sizeof s_kbd) == 0 || !tud_hid_n_ready(ITF_KBD))
+        return;
+    kbd_state_t k = s_kbd;
+    if (tud_hid_n_keyboard_report(ITF_KBD, 0, k.modifiers, k.keys))
+        s_kbd_sent = k;
+}
+
+static void pump_rel(void)
+{
+    if (!s_rel.dx && !s_rel.dy && !s_rel.wheel && !s_rel.pan && s_rel.buttons == s_rel_sent_buttons)
+        return;
+    if (!tud_hid_n_ready(ITF_MOUSE))
+        return;
+    int8_t x = clamp8(s_rel.dx), y = clamp8(s_rel.dy);
+    int8_t wheel = clamp8(s_rel.wheel), pan = clamp8(s_rel.pan);
+    uint8_t buttons = s_rel.buttons;
+    bool ok;
+    if (tud_hid_n_get_protocol(ITF_MOUSE) == HID_PROTOCOL_BOOT) {
+        /* Boot protocol: exactly buttons, x, y. Some BIOSes mind extra bytes. */
+        const uint8_t r[3] = { buttons, (uint8_t)x, (uint8_t)y };
+        ok = tud_hid_n_report(ITF_MOUSE, 0, r, sizeof r);
+        wheel = pan = 0; /* the boot report can't carry them; drop rather than queue */
+        s_rel.wheel = s_rel.pan = 0;
+    } else {
+        ok = tud_hid_n_mouse_report(ITF_MOUSE, 0, buttons, x, y, wheel, pan);
+    }
+    if (ok) {
+        s_rel.dx -= x;
+        s_rel.dy -= y;
+        s_rel.wheel -= wheel;
+        s_rel.pan -= pan;
+        s_rel_sent_buttons = buttons;
+    }
+}
+
+static void pump_abs(void)
+{
+    if (s_abs.x == s_abs_sent_x && s_abs.y == s_abs_sent_y && s_abs.buttons == s_abs_sent_buttons &&
+        !s_abs.wheel && !s_abs.pan)
+        return;
+    if (!tud_hid_n_ready(ITF_ABS))
+        return;
+    int8_t wheel = clamp8(s_abs.wheel), pan = clamp8(s_abs.pan);
+    abs_state_t a = s_abs;
+    if (tud_hid_n_abs_mouse_report(ITF_ABS, 0, a.buttons, (int16_t)a.x, (int16_t)a.y, wheel, pan)) {
+        s_abs.wheel -= wheel;
+        s_abs.pan -= pan;
+        s_abs_sent_x = a.x;
+        s_abs_sent_y = a.y;
+        s_abs_sent_buttons = a.buttons;
+    }
+}
+
+static void pump_all_locked(void)
+{
+    if (!tud_ready()) /* not mounted, or suspended */
+        return;
+    pump_kbd();
+    pump_rel();
+    pump_abs();
+}
+
+/* ---- Public API -------------------------------------------------------- */
+
+void usb_hid_keyboard(uint8_t modifiers, const uint8_t keys[6])
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
+        s_kbd.modifiers = modifiers;
+        memcpy(s_kbd.keys, keys, 6);
+    }
+    pump_all_locked();
+    xSemaphoreGive(s_lock);
+}
+
+void usb_hid_mouse_rel(uint8_t buttons, int16_t dx, int16_t dy, int8_t wheel, int8_t pan)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
+        s_rel.buttons = buttons;
+        s_rel.dx += dx;
+        s_rel.dy += dy;
+        s_rel.wheel += wheel;
+        s_rel.pan += pan;
+        s_abs.buttons = 0; /* the host switched mouse modes; don't leave a button held on the other one */
+    }
+    pump_all_locked();
+    xSemaphoreGive(s_lock);
+}
+
+void usb_hid_mouse_abs(uint16_t x, uint16_t y, uint8_t buttons, int8_t wheel, int8_t pan)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
+        s_abs.x = x > 32767 ? 32767 : x;
+        s_abs.y = y > 32767 ? 32767 : y;
+        s_abs.buttons = buttons;
+        s_abs.wheel += wheel;
+        s_abs.pan += pan;
+        s_rel.buttons = 0;
+    }
+    pump_all_locked();
+    xSemaphoreGive(s_lock);
+}
+
+void usb_hid_release_all(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    clear_input_locked();
+    pump_all_locked();
+    xSemaphoreGive(s_lock);
+}
+
+void usb_hid_poll(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    pump_all_locked();
+    xSemaphoreGive(s_lock);
+}
+
+uint8_t usb_hid_status(void)
+{
+    uint8_t f = 0;
+    if (tud_mounted()) {
+        f |= TS_MOUNTED;
+        if (tud_hid_n_get_protocol(ITF_KBD) == HID_PROTOCOL_BOOT)
+            f |= TS_KBD_BOOT;
+        if (tud_hid_n_get_protocol(ITF_MOUSE) == HID_PROTOCOL_BOOT)
+            f |= TS_MOUSE_BOOT;
+    }
+    if (tud_suspended()) {
+        f |= TS_SUSPENDED;
+        if (s_remote_wakeup_enabled)
+            f |= TS_REMOTE_WAKEUP;
+    }
+    return f;
+}
+
+uint8_t usb_hid_kbd_leds(void)
+{
+    return s_kbd_leds;
+}
+
+void usb_hid_wake(void)
+{
+    if (!tud_suspended() || !s_remote_wakeup_enabled || s_wake_sent)
+        return;
+    s_wake_sent = true;
+    if (tinyusb_remote_wakeup() != ESP_OK)
+        ESP_LOGW(TAG, "Remote wakeup failed");
+}
+
+/* ---- TinyUSB callbacks (TinyUSB task) ---------------------------------- */
+
+static void on_usb_event(tinyusb_event_t *event, void *arg)
+{
+    (void)arg;
+    switch (event->id) {
+    case TINYUSB_EVENT_ATTACHED:
+        break;
+    case TINYUSB_EVENT_DETACHED:
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        clear_input_locked();
+        /* A fresh enumeration starts with nothing held. */
+        memset(&s_kbd_sent, 0, sizeof s_kbd_sent);
+        s_rel_sent_buttons = s_abs_sent_buttons = 0;
+        xSemaphoreGive(s_lock);
+        s_kbd_leds = 0;
+        break;
+    case TINYUSB_EVENT_SUSPENDED:
+        s_remote_wakeup_enabled = event->suspended.remote_wakeup;
+        s_wake_sent = false;
+        /* Drop held input. What the target last saw stays "sent", so the
+         * first poll after resume sends the release. */
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        clear_input_locked();
+        xSemaphoreGive(s_lock);
+        break;
+    case TINYUSB_EVENT_RESUMED:
+        s_remote_wakeup_enabled = false;
+        break;
+    default:
+        break;
+    }
+}
+
+uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
+{
+    switch (instance) {
+    case ITF_KBD: return s_report_kbd;
+    case ITF_MOUSE: return s_report_mouse;
+    default: return s_report_abs;
+    }
+}
+
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type,
+                               uint8_t *buffer, uint16_t reqlen)
+{
+    (void)instance; (void)report_id; (void)report_type; (void)buffer; (void)reqlen;
+    return 0; /* stall: we have nothing to report on request */
+}
+
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type,
+                           uint8_t const *buffer, uint16_t bufsize)
+{
+    (void)report_id;
+    if (instance == ITF_KBD && report_type == HID_REPORT_TYPE_OUTPUT && bufsize >= 1)
+        s_kbd_leds = buffer[0] & (KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
+}
+
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
+{
+    (void)instance; (void)report; (void)len;
+    /* Send whatever is still pending (the rest of a long relative move, or
+     * a state change that arrived while this report was in flight). */
+    if (xSemaphoreTake(s_lock, 0) == pdTRUE) { /* if busy, the session task is pumping anyway */
+        pump_all_locked();
+        xSemaphoreGive(s_lock);
+    }
+}
+
+/* ---- Init -------------------------------------------------------------- */
+
+void usb_hid_init(void)
+{
+    s_lock = xSemaphoreCreateMutex();
+    configASSERT(s_lock);
+
+    uint8_t mac[6] = { 0 };
+    esp_efuse_mac_get_default(mac);
+    snprintf(s_serial, sizeof s_serial, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG(on_usb_event);
+    cfg.descriptor.device = &s_device_desc;
+    cfg.descriptor.string = s_strings;
+    cfg.descriptor.string_count = STR_COUNT;
+    cfg.descriptor.full_speed_config = s_config_desc;
+    ESP_ERROR_CHECK(tinyusb_driver_install(&cfg));
+}

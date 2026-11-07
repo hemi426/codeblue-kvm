@@ -1,5 +1,12 @@
 menu "CodeBlue"
 
+    config CODEBLUE_BOARD_NAME
+        string "Board name"
+        default "ESP32-S3 board"
+        help
+            Reported to the viewer in INFO. Set by the board preset
+            (boards/*.defaults).
+
     config CODEBLUE_LED_GPIO
         int "Status LED GPIO (WS2812)"
         default 48
@@ -14,5 +21,25 @@ menu "CodeBlue"
         help
             Used until the viewer sets a brightness (which can be saved on
             the board). 5% is plenty for an indicator LED.
+
+    config CODEBLUE_USB_VID
+        hex "USB vendor ID"
+        default 0x303A
+        help
+            What the target sees. The default is Espressif's vendor ID with
+            TinyUSB's generic HID product ID; a dedicated product ID can be
+            requested from Espressif for open-source projects.
+
+    config CODEBLUE_USB_PID
+        hex "USB product ID"
+        default 0x4004
+
+    config CODEBLUE_UART_LOGS
+        bool "Keep logging on the UART after start-up (breaks the protocol)"
+        default n
+        help
+            The UART carries the host protocol, so logging normally stops
+            once the firmware is up. Turn this on only for bring-up with
+            idf.py monitor; the viewer will not work reliably.
 
 endmenu
