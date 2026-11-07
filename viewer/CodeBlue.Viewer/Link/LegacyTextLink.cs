@@ -33,6 +33,8 @@ internal sealed class LegacyTextLink : IKvmLink
     private readonly object _motionLock = new();
     private readonly System.Threading.Timer _motionTimer;
     private int _pendingX, _pendingY;
+    private int _ledPercent = 100;
+    private (byte R, byte G, byte B) _ledColor;
 
     public string ProtocolName => "legacy text (deprecated)";
 
@@ -41,6 +43,14 @@ internal sealed class LegacyTextLink : IKvmLink
         add => _transport.Faulted += value;
         remove => _transport.Faulted -= value;
     }
+
+    // The Arduino firmware never sends anything back.
+    public event Action<TargetStatus>? TargetStatusChanged { add { } remove { } }
+    public event Action<string>? Diagnostic { add { } remove { } }
+    public TargetStatus? TargetStatus => null;
+    public int? LedBrightness => null;
+
+    public void Heartbeat() { /* no heartbeat in this protocol */ }
 
     public LegacyTextLink(SerialTransport transport)
     {
@@ -116,7 +126,19 @@ internal sealed class LegacyTextLink : IKvmLink
         Send('m', 9);
     }
 
-    public void SetStatusLed(byte r, byte g, byte b) => Send('s', r, g, b);
+    // The Arduino firmware has no brightness setting, so scale the colour here.
+    public void SetStatusLed(byte r, byte g, byte b)
+    {
+        _ledColor = (r, g, b);
+        byte Scale(byte v) => (byte)((v * _ledPercent + 50) / 100);
+        Send('s', Scale(r), Scale(g), Scale(b));
+    }
+
+    public void SetLedBrightness(int percent, bool persist)
+    {
+        _ledPercent = Math.Clamp(percent, 0, 100);
+        SetStatusLed(_ledColor.R, _ledColor.G, _ledColor.B);
+    }
 
     private void Send(char command, int v0, int v1 = 0, int v2 = 0) =>
         _transport.Send(string.Create(CultureInfo.InvariantCulture, $"{command} {v0} {v1} {v2}\n"));

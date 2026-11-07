@@ -25,11 +25,13 @@ needs no software and no network.
 Early. What works today:
 
 - **Viewer** (Windows): low-latency video, keyboard and mouse capture, full
-  screen, snapshots, Ctrl+Alt+Del. Talks to the original Arduino firmware
-  through the deprecated legacy protocol.
-- **Firmware**: an ESP-IDF rewrite with a binary protocol is in progress. Until
-  it lands, use the Arduino sketch from the project that inspired this one
-  (see Credits).
+  screen, snapshots, Ctrl+Alt+Del, and the target's status (connected, asleep,
+  Caps Lock). Speaks the CodeBlue protocol, and the original Arduino firmware's
+  protocol (deprecated) for boards that still run it.
+- **Firmware** (ESP-IDF): a boot-protocol keyboard, mouse and absolute pointer
+  for the target, and a binary protocol with heartbeats both ways, so a
+  crashed viewer or pulled cable never leaves a key held down. Works in BIOS
+  setup screens. See [firmware/README.md](firmware/README.md).
 
 ## Repository layout
 
@@ -57,7 +59,8 @@ See [docs/BUILDING.md](docs/BUILDING.md) for details.
 1. Plug the ESP32's **UART** port into your laptop and its **native USB** port
    into the target. Plug the capture dongle's HDMI into the target and its USB
    into your laptop (a USB 3 port if the dongle supports it).
-2. Pick the serial port, the protocol, and the video device, then **Connect**.
+2. Pick the serial port, the protocol (**CodeBlue** for this project's
+   firmware), and the video device, then **Connect**.
 3. Click **Capture** (or press Ctrl+Alt+C) to send keyboard and mouse to the
    target. An amber banner shows while they are captured.
 
@@ -88,6 +91,11 @@ re-plug the ESP32's native USB cable at the target, and reconnect. The status
 LED turning green on Connect shows the viewer is reaching the ESP32; if it
 does but the target ignores input, the problem is the ESP32-to-target USB
 link (cable, port, or the target not having enumerated the device).
+
+**"No CodeBlue firmware found on this port"?** Check you picked the board's
+UART port, not its native USB port (the native one shows up on the target,
+not on your laptop). A board still running the Arduino firmware needs the
+**Legacy text** protocol instead.
 
 **Black video?** Make sure no other program (OBS, VLC, the Camera app) has
 the capture device open. If it still fails, the status bar names the problem,

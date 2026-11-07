@@ -4,11 +4,9 @@ ESP-IDF (C) firmware for the ESP32-S3. It presents a boot-protocol USB
 keyboard, a relative mouse and an absolute pointer to the target, and speaks
 the binary protocol in [../docs/PROTOCOL.md](../docs/PROTOCOL.md).
 
-**Status:** first working version, not yet supported by the viewer (which
-still speaks only the legacy protocol). Test it with `tools/cb_test.py`.
-Until the viewer catches up, the Arduino firmware from
-[alpharesearch/KeyboardAndMouseControl](https://github.com/alpharesearch/KeyboardAndMouseControl)
-remains the way to use CodeBlue day to day.
+**Status:** first working version. Pick the **CodeBlue** protocol in the
+viewer, or test with `tools/cb_test.py`. Tested targets are listed in
+[../hardware/README.md](../hardware/README.md).
 
 | Module | Job |
 |--------|-----|

@@ -1,11 +1,16 @@
 using System.Collections.Concurrent;
 using System.IO.Ports;
+using System.Text;
 
 namespace CodeBlue.Viewer.Link;
 
+/// <summary>Receives a chunk of bytes read from the port.</summary>
+internal delegate void SerialDataHandler(ReadOnlySpan<byte> data);
+
 /// <summary>
 /// Serial port with a dedicated writer thread, so input handlers (including the
-/// keyboard hook, which Windows times out if it blocks) only ever enqueue.
+/// keyboard hook, which Windows times out if it blocks) only ever enqueue, and
+/// an optional reader thread for protocols that listen.
 ///
 /// DTR and RTS are held low. On ESP32 DevKitC boards those lines drive the
 /// auto-reset circuit, and toggling them on open can reset the board or drop it
@@ -14,8 +19,10 @@ namespace CodeBlue.Viewer.Link;
 internal sealed class SerialTransport : IDisposable
 {
     private readonly SerialPort _port;
-    private readonly BlockingCollection<string> _queue = new();
+    private readonly BlockingCollection<byte[]> _queue = new();
     private readonly Thread _writer;
+    private Thread? _reader;
+    private volatile bool _disposing;
 
     public event Action<Exception>? Faulted;
 
@@ -27,6 +34,7 @@ internal sealed class SerialTransport : IDisposable
             DtrEnable = false,
             RtsEnable = false,
             WriteTimeout = 1000,
+            ReadTimeout = 100,
         };
         _port.Open();
 
@@ -34,10 +42,42 @@ internal sealed class SerialTransport : IDisposable
         _writer.Start();
     }
 
-    public void Send(string data)
+    public void Send(byte[] data)
     {
         try { _queue.TryAdd(data); }
         catch (InvalidOperationException) { /* shutting down */ }
+    }
+
+    public void Send(string data) => Send(Encoding.ASCII.GetBytes(data));
+
+    /// <summary>Starts a reader thread that hands every received chunk to <paramref name="onData"/>.</summary>
+    public void StartReading(SerialDataHandler onData)
+    {
+        _reader = new Thread(() => ReadLoop(onData)) { IsBackground = true, Name = "CodeBlue serial reader" };
+        _reader.Start();
+    }
+
+    private void ReadLoop(SerialDataHandler onData)
+    {
+        var buf = new byte[256];
+        try
+        {
+            while (!_disposing)
+            {
+                int n;
+                try { n = _port.Read(buf, 0, buf.Length); }
+                catch (TimeoutException) { continue; }
+                if (n > 0) onData(buf.AsSpan(0, n));
+            }
+        }
+        catch (Exception ex) when (!_disposing)
+        {
+            Faulted?.Invoke(ex);
+        }
+        catch
+        {
+            // Closing the port ends a pending read; expected during Dispose.
+        }
     }
 
     private void WriteLoop()
@@ -45,7 +85,7 @@ internal sealed class SerialTransport : IDisposable
         try
         {
             foreach (var data in _queue.GetConsumingEnumerable())
-                _port.Write(data);
+                _port.Write(data, 0, data.Length);
         }
         catch (Exception ex)
         {
@@ -58,7 +98,9 @@ internal sealed class SerialTransport : IDisposable
     {
         _queue.CompleteAdding();
         _writer.Join(TimeSpan.FromSeconds(1));
+        _disposing = true;
         try { _port.Close(); } catch { /* port may already be gone (unplugged) */ }
+        _reader?.Join(TimeSpan.FromSeconds(1));
         _port.Dispose();
         _queue.Dispose();
     }

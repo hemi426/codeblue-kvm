@@ -58,6 +58,8 @@ internal sealed class MainForm : Form
     private readonly HashSet<byte> _held = [];
 
     private readonly System.Windows.Forms.Timer _heartbeatTimer;
+    private readonly System.Windows.Forms.Timer _ledSaveTimer;
+    private bool _syncingLedBox; // set while showing the board's brightness, so it isn't sent back
     private long _uiHeartbeat = Environment.TickCount64;
     private volatile bool _watchdogTripped;
     private volatile bool _closing;
@@ -196,7 +198,21 @@ internal sealed class MainForm : Form
         _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
         _ledBox.Value = Math.Clamp(_settings.LedBrightnessPercent, 0, 100);
         _nativeBox.Checked = _settings.NativeScale;
-        _ledBox.ValueChanged += (_, _) => SetLed(LedConnected); // live preview while connected
+        // While the value changes, preview it on the board; save it there once, a
+        // second after the last change, so the board's flash is written once per adjustment.
+        _ledSaveTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        _ledSaveTimer.Tick += (_, _) =>
+        {
+            _ledSaveTimer.Stop();
+            _link?.SetLedBrightness((int)_ledBox.Value, persist: true);
+        };
+        _ledBox.ValueChanged += (_, _) =>
+        {
+            if (_syncingLedBox || _link is null) return;
+            _link.SetLedBrightness((int)_ledBox.Value, persist: false);
+            _ledSaveTimer.Stop();
+            _ledSaveTimer.Start();
+        };
 
         Deactivate += (_, _) => StopCapture();
         FormClosing += (_, _) => { Disconnect(); SaveSettings(); };
@@ -204,8 +220,14 @@ internal sealed class MainForm : Form
         // Dead-man's switch for a hung UI thread: the timer proves the UI is alive,
         // and the watchdog thread frees the cursor if it stops ticking during capture.
         // (Windows itself drops a low-level keyboard hook that stops responding.)
-        _heartbeatTimer = new System.Windows.Forms.Timer { Interval = 250 };
-        _heartbeatTimer.Tick += (_, _) => Volatile.Write(ref _uiHeartbeat, Environment.TickCount64);
+        // The same timer sends the link's heartbeat, so a frozen viewer also stops
+        // heartbeating and the board releases every key and button.
+        _heartbeatTimer = new System.Windows.Forms.Timer { Interval = 50 };
+        _heartbeatTimer.Tick += (_, _) =>
+        {
+            Volatile.Write(ref _uiHeartbeat, Environment.TickCount64);
+            _link?.Heartbeat();
+        };
         _heartbeatTimer.Start();
         new Thread(WatchdogLoop) { IsBackground = true, Name = "CodeBlue capture watchdog" }.Start();
 
@@ -283,12 +305,34 @@ internal sealed class MainForm : Form
         _banner.Visible = _captured;
 
         SetStatus(_captured
-            ? "Captured. Release: Ctrl+Alt. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1. Snapshot: Ctrl+Alt+S."
+            ? $"Captured.{TargetText()} Release: Ctrl+Alt. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1. Snapshot: Ctrl+Alt+S."
             : !running
                 ? "Not connected. F11: full screen, Ctrl+Alt+S or F12: snapshot, Ctrl+Alt+1: 1:1 pixels, Ctrl+Alt+C: capture."
                 : _link is null
                     ? $"Showing {_deviceBox.Text}. No keyboard/mouse link."
-                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}. Click Capture (or press Ctrl+Alt+C) to take control.");
+                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}.{TargetText()} Click Capture (or press Ctrl+Alt+C) to take control.");
+    }
+
+    /// <summary>The target's state for the status bar, or empty if the link can't tell.</summary>
+    private string TargetText()
+    {
+        if (_link?.TargetStatus is not TargetStatus t) return "";
+        if (!t.Mounted) return " Target: not connected (plug the board's native USB port into the target).";
+        if (t.Suspended) return " Target: asleep or disconnected; a keypress may wake it.";
+        var lit = new List<string>();
+        if (t.NumLock) lit.Add("Num");
+        if (t.CapsLock) lit.Add("Caps");
+        if (t.ScrollLock) lit.Add("Scroll");
+        return lit.Count == 0 ? " Target: connected." : $" Target: connected, {string.Join(" ", lit)} Lock on.";
+    }
+
+    private void OnTargetStatus(TargetStatus status, TargetStatus? previous)
+    {
+        WriteLog($"codeblue: target status flags 0x{status.Flags:X2}, LEDs 0x{status.KeyboardLeds:X2}");
+        // The target dropped the device: nothing we send can arrive, so let go.
+        // (A sleeping target keeps capture, so a keypress can wake it.)
+        if (_captured && previous is { Mounted: true } && !status.Mounted) StopCapture();
+        UpdateUi();
     }
 
     private void SetStatus(string text) => _status.Text = text;
@@ -358,13 +402,41 @@ internal sealed class MainForm : Form
             {
                 try
                 {
+                    SetStatus($"Looking for a CodeBlue board on {port}...");
+                    Cursor.Current = Cursors.WaitCursor; // the handshake can take up to two seconds
                     _link = KvmLinks.Open(protocol, port);
                     if (_link is not null)
                     {
                         _linkPort = port;
+                        var link = _link;
+                        TargetStatus? previous = link.TargetStatus;
                         _link.Faulted += ex => PostToUi(() => OnLinkFault(ex));
+                        _link.Diagnostic += message => WriteLog($"codeblue: {message}");
+                        _link.TargetStatusChanged += status => PostToUi(() =>
+                        {
+                            if (_link != link) return; // a stale event from a link we've closed
+                            OnTargetStatus(status, previous);
+                            previous = status;
+                        });
+                        WriteLog($"codeblue: link open: {_link.ProtocolName} on {port}");
+
+                        // The board is the source of truth for its brightness, if it has one.
+                        if (_link.LedBrightness is int boardPercent)
+                        {
+                            _syncingLedBox = true;
+                            _ledBox.Value = Math.Clamp(boardPercent, 0, 100);
+                            _syncingLedBox = false;
+                        }
+                        else
+                        {
+                            _link.SetLedBrightness((int)_ledBox.Value, persist: false);
+                        }
                         SetLed(LedConnected);
                     }
+                }
+                catch (KvmLinkException ex)
+                {
+                    ShowError($"{port}: {ex.Message}\n\nThe video will keep running without keyboard and mouse.");
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
                 {
@@ -385,6 +457,11 @@ internal sealed class MainForm : Form
         StopCapture();
         if (_link is not null)
         {
+            if (_ledSaveTimer.Enabled)
+            {
+                _ledSaveTimer.Stop();
+                _link.SetLedBrightness((int)_ledBox.Value, persist: true);
+            }
             _link.ReleaseAll();
             SetLed(LedIdle);
             _link.Dispose(); // drains the queue, so the two commands above go out first
@@ -430,24 +507,31 @@ internal sealed class MainForm : Form
 
     private void ToggleNativeScale() => _nativeBox.Checked = !_nativeBox.Checked;
 
-    /// <summary>Sends a status colour scaled by the LED % setting (0 turns the LED off).</summary>
-    private void SetLed((byte R, byte G, byte B) color)
-    {
-        if (_link is null) return;
-        int percent = (int)_ledBox.Value;
-        byte Scale(byte v) => (byte)((v * percent + 50) / 100);
-        _link.SetStatusLed(Scale(color.R), Scale(color.G), Scale(color.B));
-    }
+    /// <summary>Sends a full-scale status colour; the link applies the LED % setting.</summary>
+    private void SetLed((byte R, byte G, byte B) color) => _link?.SetStatusLed(color.R, color.G, color.B);
 
     private void OnLinkFault(Exception ex)
     {
         if (_link is null) return;
+        string? port = _linkPort;
         StopCapture();
         try { _link.Dispose(); } catch { /* already broken */ }
         _link = null;
         _linkPort = null;
         UpdateUi();
-        ShowError($"The serial link was lost: {ex.Message}\n\nThe video is still running. Disconnect and reconnect to try again.");
+        WriteLog($"codeblue: link lost: {ex.GetType().Name}: {ex.Message}");
+
+        // Windows reports a vanished USB serial port as "access denied" on the
+        // next write, so say what actually happened.
+        bool portGone = port is not null &&
+            (ex is UnauthorizedAccessException ||
+             !SerialPort.GetPortNames().Contains(port, StringComparer.OrdinalIgnoreCase));
+        string what = portGone
+            ? $"The board's serial port ({port}) went away. Was its cable unplugged?\n\n" +
+              "The video is still running. Plug the board back in, then Disconnect and Connect to carry on."
+            : $"The serial link was lost: {ex.Message}\n\n" +
+              "The video is still running. Disconnect and Connect to try again.";
+        ShowError(what);
     }
 
     /// <summary>
@@ -775,6 +859,7 @@ internal sealed class MainForm : Form
     {
         _closing = true;
         _heartbeatTimer.Dispose();
+        _ledSaveTimer.Dispose();
         _video.MediaPlayer = null;
         _player.Dispose();
         _libVlc.Log -= OnVlcLog;

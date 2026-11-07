@@ -10,11 +10,30 @@ namespace CodeBlue.Viewer.Link;
 /// </summary>
 internal interface IKvmLink : IDisposable
 {
-    /// <summary>Human-readable protocol name for the status bar.</summary>
+    /// <summary>Human-readable protocol (and firmware, if known) for the status bar.</summary>
     string ProtocolName { get; }
 
     /// <summary>Raised (on a background thread) if the connection fails.</summary>
     event Action<Exception>? Faulted;
+
+    /// <summary>Raised (on a background thread) when the target's status changes. Never raised by links that can't tell.</summary>
+    event Action<TargetStatus>? TargetStatusChanged;
+
+    /// <summary>Raised (on a background thread) with messages worth logging, such as errors the board reports.</summary>
+    event Action<string>? Diagnostic;
+
+    /// <summary>The target's last reported status, or null if this link can't tell.</summary>
+    TargetStatus? TargetStatus { get; }
+
+    /// <summary>The board's LED brightness when connected, or null if the board doesn't report it.</summary>
+    int? LedBrightness { get; }
+
+    /// <summary>
+    /// Called from the UI thread several times a second. Protocols with a
+    /// heartbeat send it from here, so a frozen viewer stops heartbeating and
+    /// the board releases everything.
+    /// </summary>
+    void Heartbeat();
 
     void KeyDown(byte usage);
     void KeyUp(byte usage);
@@ -28,12 +47,35 @@ internal interface IKvmLink : IDisposable
     /// <summary>Releases every key and button on the target. Called whenever capture ends.</summary>
     void ReleaseAll();
 
+    /// <summary>Sets the status LED to a full-scale colour; the link applies the brightness.</summary>
     void SetStatusLed(byte r, byte g, byte b);
+
+    /// <summary>Sets the LED brightness (0-100). With <paramref name="persist"/>, the board saves it, if it can.</summary>
+    void SetLedBrightness(int percent, bool persist);
 }
+
+/// <summary>What the board reports about the target (TARGET_STATUS in docs/PROTOCOL.md).</summary>
+internal readonly record struct TargetStatus(byte Flags, byte KeyboardLeds)
+{
+    public bool Mounted => (Flags & 0x01) != 0;
+    public bool Suspended => (Flags & 0x02) != 0;
+    public bool KeyboardBoot => (Flags & 0x04) != 0;
+    public bool MouseBoot => (Flags & 0x08) != 0;
+    public bool RemoteWakeup => (Flags & 0x10) != 0;
+    public bool VbusPresent => (Flags & 0x20) != 0;
+
+    public bool NumLock => (KeyboardLeds & 0x01) != 0;
+    public bool CapsLock => (KeyboardLeds & 0x02) != 0;
+    public bool ScrollLock => (KeyboardLeds & 0x04) != 0;
+}
+
+/// <summary>A board that answered, but not in a way we can use (no firmware, wrong version).</summary>
+internal sealed class KvmLinkException(string message) : IOException(message);
 
 /// <summary>Available link protocols, as offered in the UI.</summary>
 internal static class KvmLinks
 {
+    public const string CodeBlue = "CodeBlue";
     public const string VideoOnly = "None (video only)";
 
 #if CODEBLUE_LEGACY_PROTOCOL
@@ -42,15 +84,20 @@ internal static class KvmLinks
 
     public static IReadOnlyList<string> Available { get; } =
     [
+        CodeBlue,
 #if CODEBLUE_LEGACY_PROTOCOL
         LegacyText,
 #endif
         VideoOnly,
     ];
 
-    /// <summary>Opens the named link on a serial port, or returns null for video-only.</summary>
+    /// <summary>
+    /// Opens the named link on a serial port, or returns null for video-only.
+    /// May block for up to two seconds while the board answers.
+    /// </summary>
     public static IKvmLink? Open(string protocol, string portName) => protocol switch
     {
+        CodeBlue => BinaryLink.Open(portName),
 #if CODEBLUE_LEGACY_PROTOCOL
         LegacyText => new LegacyTextLink(new SerialTransport(portName, LegacyTextLink.BaudRate)),
 #endif

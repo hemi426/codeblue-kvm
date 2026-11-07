@@ -129,4 +129,5 @@ internal static class HidUsageMap
 
     public static bool IsCtrl(byte usage) => usage is LeftCtrl or RightCtrl;
     public static bool IsAlt(byte usage) => usage is LeftAlt or RightAlt;
+    public static bool IsModifier(byte usage) => usage is >= LeftCtrl and <= RightGui;
 }
