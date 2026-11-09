@@ -74,6 +74,11 @@ static const char *s_strings[STR_COUNT] = {
  * The session task writes the wanted state; usb_hid_poll() (session task)
  * and the report-complete callback (TinyUSB task) send it. One mutex covers
  * both, so a relative-mouse chunk is never sent twice.
+ *
+ * The wanted state is the host's, and only the host changes it (the session
+ * releases everything if the host goes quiet). A target that resets the bus,
+ * as one does several times while rebooting, gets the held keys again as
+ * soon as it enumerates the device, so "hold F2 and reboot" works.
  */
 
 typedef struct {
@@ -109,6 +114,14 @@ static volatile bool s_wake_sent;
 static int8_t clamp8(int32_t v)
 {
     return (int8_t)(v > 127 ? 127 : v < -127 ? -127 : v);
+}
+
+/* Movement and wheel detents queued for a target that can't take them are stale. */
+static void drop_motion_locked(void)
+{
+    s_rel.dx = s_rel.dy = 0;
+    s_rel.wheel = s_rel.pan = 0;
+    s_abs.wheel = s_abs.pan = 0;
 }
 
 static void clear_input_locked(void)
@@ -190,10 +203,8 @@ static void pump_all_locked(void)
 void usb_hid_keyboard(uint8_t modifiers, const uint8_t keys[6])
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
-        s_kbd.modifiers = modifiers;
-        memcpy(s_kbd.keys, keys, 6);
-    }
+    s_kbd.modifiers = modifiers;
+    memcpy(s_kbd.keys, keys, 6);
     pump_all_locked();
     xSemaphoreGive(s_lock);
 }
@@ -201,14 +212,14 @@ void usb_hid_keyboard(uint8_t modifiers, const uint8_t keys[6])
 void usb_hid_mouse_rel(uint8_t buttons, int16_t dx, int16_t dy, int8_t wheel, int8_t pan)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
-        s_rel.buttons = buttons;
+    s_rel.buttons = buttons;
+    if (tud_ready()) { /* movement only means something to a target that's listening */
         s_rel.dx += dx;
         s_rel.dy += dy;
         s_rel.wheel += wheel;
         s_rel.pan += pan;
-        s_abs.buttons = 0; /* the host switched mouse modes; don't leave a button held on the other one */
     }
+    s_abs.buttons = 0; /* the host switched mouse modes; don't leave a button held on the other one */
     pump_all_locked();
     xSemaphoreGive(s_lock);
 }
@@ -216,14 +227,14 @@ void usb_hid_mouse_rel(uint8_t buttons, int16_t dx, int16_t dy, int8_t wheel, in
 void usb_hid_mouse_abs(uint16_t x, uint16_t y, uint8_t buttons, int8_t wheel, int8_t pan)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    if (tud_ready()) { /* input for an absent or sleeping target is dropped */
-        s_abs.x = x > 32767 ? 32767 : x;
-        s_abs.y = y > 32767 ? 32767 : y;
-        s_abs.buttons = buttons;
+    s_abs.x = x > 32767 ? 32767 : x;
+    s_abs.y = y > 32767 ? 32767 : y;
+    s_abs.buttons = buttons;
+    if (tud_ready()) {
         s_abs.wheel += wheel;
         s_abs.pan += pan;
-        s_rel.buttons = 0;
     }
+    s_rel.buttons = 0;
     pump_all_locked();
     xSemaphoreGive(s_lock);
 }
@@ -284,9 +295,11 @@ static void on_usb_event(tinyusb_event_t *event, void *arg)
     case TINYUSB_EVENT_ATTACHED:
         break;
     case TINYUSB_EVENT_DETACHED:
+        /* The target forgot everything (bus reset or unplug). Keep the host's
+         * state, but mark nothing as delivered, so whatever is still held is
+         * sent again once the target enumerates the device. */
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        clear_input_locked();
-        /* A fresh enumeration starts with nothing held. */
+        drop_motion_locked();
         memset(&s_kbd_sent, 0, sizeof s_kbd_sent);
         s_rel_sent_buttons = s_abs_sent_buttons = 0;
         xSemaphoreGive(s_lock);
@@ -295,10 +308,10 @@ static void on_usb_event(tinyusb_event_t *event, void *arg)
     case TINYUSB_EVENT_SUSPENDED:
         s_remote_wakeup_enabled = event->suspended.remote_wakeup;
         s_wake_sent = false;
-        /* Drop held input. What the target last saw stays "sent", so the
-         * first poll after resume sends the release. */
+        /* Nothing can be sent while suspended. The target keeps what it last
+         * saw, and on resume gets any change the host made meanwhile. */
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        clear_input_locked();
+        drop_motion_locked();
         xSemaphoreGive(s_lock);
         break;
     case TINYUSB_EVENT_RESUMED:

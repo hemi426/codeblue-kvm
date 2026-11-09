@@ -1,3 +1,5 @@
+<img src="assets/codeblue.svg" alt="" width="72" align="right">
+
 # CodeBlue
 
 A pocket crash cart: control a headless or misbehaving PC from your laptop, BIOS
@@ -99,6 +101,28 @@ has its own button.
 Compact keyboards (many Keychron layouts, for example) have no Menu key, which
 is why Ctrl+Alt is the main release. To use the Menu key anyway, map a spare
 key to the App/Menu key code (`KC_APP`) in your keyboard's configuration tool.
+
+### When capture ends
+
+Capture ends only when you ask, or when your keystrokes might go somewhere
+you can't see:
+
+- **You release it:** Ctrl+Alt (or the Menu key), **Disconnect**, or closing
+  the viewer.
+- **The viewer loses focus:** a UAC prompt, a notification you click, Win+L,
+  or another program taking the foreground.
+- **The board is lost:** it stops answering, or its cable is pulled. The
+  viewer reconnects by itself, but waits for you to capture again.
+
+Two safety nets cover a viewer that crashes or hangs. If its window stops
+responding for three seconds, your mouse pointer is freed. And if the board
+stops hearing from the viewer for half a second, it releases every key and
+button on the target, so nothing stays held down.
+
+The target sleeping, rebooting, or dropping the board does **not** end
+capture: the status bar shows what the target is doing, and keys you're
+holding are sent again when it's back. So you can capture before rebooting
+and press the target's setup key (F2, Del, Esc...) at its logo screen.
 
 ## Troubleshooting
 

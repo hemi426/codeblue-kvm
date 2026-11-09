@@ -22,8 +22,7 @@ These come from real failure modes and are not optional:
     held down when the viewer crashes or the cable is pulled.
 - **Target status.** The firmware reports whether the target has enumerated
   its USB keyboard and mouse, whether it is asleep, and its keyboard LEDs, and
-  reports changes as they happen. The viewer shows it, and releases capture if
-  the target drops the device.
+  reports changes as they happen. The viewer shows it.
 - **Firmware identity on connect.** Protocol version and firmware version, so
   the viewer can refuse an incompatible board with a clear message instead of
   sending into the void.
@@ -255,16 +254,19 @@ since some PCs cut USB power when fully off or hibernating.
 
 What each side does:
 
-- **`suspended` 1:** the device drops all held input (it cannot send reports
-  while suspended anyway). The host **keeps capture**, so a keypress can wake
-  the target, and shows "asleep or disconnected". The usual capture exits
-  still work.
+- **The host keeps capture** through both `suspended` and `mounted` 0, and
+  shows the target's state. A rebooting target resets the bus and enumerates
+  the device again several times (BIOS, bootloader, OS), and "capture, hold
+  F2, reboot" has to work. The usual capture exits still work.
+- **The device keeps the host's state.** Only the host changes which keys and
+  buttons are held (and the device releases everything if the host goes
+  quiet). While the target can't receive reports, the device holds on to
+  that state and drops queued movement and wheel detents. When the target
+  enumerates the device again, or resumes, the device sends whatever is
+  still held.
 - **Wake on input:** while `suspended` and `remote_wakeup` are both 1, the
   first `KEYBOARD` or `MOUSE_*` message with a key or button pressed makes
-  the device signal remote wakeup, as a real keyboard would. Once the target
-  resumes, the next state message applies normally.
-- **`mounted` 0:** the target has dropped the device; the host releases
-  capture.
+  the device signal remote wakeup, as a real keyboard would.
 
 ### USB side (informative)
 

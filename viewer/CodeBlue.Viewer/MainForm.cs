@@ -85,6 +85,8 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         Text = "CodeBlue";
+        using (var iconStream = typeof(MainForm).Assembly.GetManifestResourceStream("CodeBlue.ico"))
+            if (iconStream is not null) Icon = new Icon(iconStream);
         Font = new Font("Segoe UI", 10f);
         ClientSize = new Size(1280, 800);
         MinimumSize = new Size(800, 500);
@@ -339,7 +341,7 @@ internal sealed class MainForm : Form
     private string TargetText()
     {
         if (_link?.TargetStatus is not TargetStatus t) return "";
-        if (!t.Mounted) return " Target: not connected (plug the board's native USB port into the target).";
+        if (!t.Mounted) return " Target: not connected (rebooting, or the board's native USB port isn't plugged in).";
         if (t.Suspended) return " Target: asleep or disconnected; a keypress may wake it.";
         var lit = new List<string>();
         if (t.NumLock) lit.Add("Num");
@@ -348,12 +350,13 @@ internal sealed class MainForm : Form
         return lit.Count == 0 ? " Target: connected." : $" Target: connected, {string.Join(" ", lit)} Lock on.";
     }
 
-    private void OnTargetStatus(TargetStatus status, TargetStatus? previous)
+    private void OnTargetStatus(TargetStatus status)
     {
         WriteLog($"codeblue: target status flags 0x{status.Flags:X2}, LEDs 0x{status.KeyboardLeds:X2}");
-        // The target dropped the device: nothing we send can arrive, so let go.
-        // (A sleeping target keeps capture, so a keypress can wake it.)
-        if (_captured && previous is { Mounted: true } && !status.Mounted) StopCapture();
+        // Capture deliberately survives the target dropping the device: a
+        // rebooting target does that several times, and "capture, hold F2,
+        // reboot" has to work. The board delivers held keys again as soon as
+        // the target picks it back up.
         ApplyMouseMode(); // Auto follows the target's boot-mouse request
         UpdateUi();
     }
@@ -455,15 +458,12 @@ internal sealed class MainForm : Form
         _link = link;
         _linkPort = port;
         _linkProtocol = protocol;
-        TargetStatus? previous = link.TargetStatus;
         // Events from a link we've since closed are ignored.
         link.Faulted += ex => PostToUi(() => { if (_link == link) OnLinkFault(ex); });
         link.Diagnostic += message => WriteLog($"codeblue: {message}");
         link.TargetStatusChanged += status => PostToUi(() =>
         {
-            if (_link != link) return;
-            OnTargetStatus(status, previous);
-            previous = status;
+            if (_link == link) OnTargetStatus(status);
         });
         WriteLog($"codeblue: link open: {link.ProtocolName} on {port}");
 

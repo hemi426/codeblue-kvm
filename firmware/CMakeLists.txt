@@ -3,7 +3,7 @@
 #   idf.py build                    (or: idf.py -DBOARD=devkitc-v1.1 build)
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_VER "0.1.0")
+set(PROJECT_VER "0.1.1")
 
 # Board preset: boards/<BOARD>.defaults is layered over sdkconfig.defaults.
 set(BOARD "devkitc-v1.0" CACHE STRING "Board preset, from boards/")

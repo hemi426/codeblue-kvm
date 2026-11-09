@@ -11,6 +11,8 @@
     <RootNamespace>CodeBlue.Viewer</RootNamespace>
     <Version>0.1.0</Version>
     <Product>CodeBlue KVM Viewer</Product>
+    <!-- Drawn by tools/make_icon.py; regenerate it there rather than editing the .ico. -->
+    <ApplicationIcon>CodeBlue.ico</ApplicationIcon>
     <!-- Lets the project restore and compile on non-Windows hosts (CI, Linux dev boxes). -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
@@ -30,6 +32,11 @@
   </PropertyGroup>
   <ItemGroup Condition="'$(CodeBlueLegacyProtocol)' != 'true'">
     <Compile Remove="Link/LegacyTextLink.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also embedded, so the window shows it however the app is started. -->
+    <EmbeddedResource Include="CodeBlue.ico" LogicalName="CodeBlue.ico" />
   </ItemGroup>
 
   <ItemGroup>
