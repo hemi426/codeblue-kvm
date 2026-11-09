@@ -1,0 +1,83 @@
+name: Tested target
+description: Report how CodeBlue worked on a machine (it all goes into the tested-targets table).
+title: "Tested: "
+labels: ["tested target"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! Every report, good or bad, helps the next person.
+        The viewer's status bar and `python tools/cb_test.py <port> info` show the
+        firmware version and what the target reported.
+
+  - type: input
+    id: target
+    attributes:
+      label: Target machine
+      description: Make and model, as exactly as you can.
+      placeholder: Dell OptiPlex 5080
+    validations:
+      required: true
+
+  - type: input
+    id: tested-where
+    attributes:
+      label: Where you tested
+      description: BIOS or UEFI setup, a boot menu, a bootloader, or an OS (with version).
+      placeholder: BIOS setup (1.21.0); Windows 11 24H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: keyboard
+    attributes:
+      label: Keyboard
+      options: [Works, Partly works, Doesn't work, Didn't try]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: absolute
+    attributes:
+      label: Absolute mouse (Mouse = Absolute)
+      description: Does the pointer go exactly where you aim it?
+      options: [Works, Partly works, Doesn't work, Didn't try]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: relative
+    attributes:
+      label: Relative mouse (Mouse = Relative)
+      options: [Works, Partly works, Doesn't work, Didn't try]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: setup-key
+    attributes:
+      label: Entering setup at power-on
+      description: Capture, reboot the target, and tap its setup key (F2, Del, Esc...) at the logo.
+      options: [Works, Doesn't work, Didn't try]
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: CodeBlue firmware version and board
+      placeholder: 0.1.1 on ESP32-S3-DevKitC-1 v1.0
+    validations:
+      required: true
+
+  - type: input
+    id: dongle
+    attributes:
+      label: Capture dongle and any video adapter
+      placeholder: '"USB3.0 capture" dongle, DisplayPort-to-HDMI cable'
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: What didn't work, odd behaviour, which keys you tried, target status flags from the viewer's log, screenshots.

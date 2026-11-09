@@ -8,9 +8,9 @@ things worth doing, kept in one place so they don't get lost.
 - [x] **CI:** build the firmware (both board presets) and the viewer on every
       push, and run the framing tests (`firmware/main/frame.c`'s test, moved
       into the repo, and `tools/cb_test.py selftest`).
-- [ ] **`hardware/BOM.md`:** tested boards (with both USB ports), capture
+- [x] **`hardware/BOM.md`:** tested boards (with both USB ports), capture
       dongles, and the video adapters below.
-- [ ] **Issue template** for reporting a tested target (machine, BIOS or OS,
+- [x] **Issue template** for reporting a tested target (machine, BIOS or OS,
       keyboard, absolute and relative mouse, boot screens), feeding the table
       in `hardware/README.md`.
 

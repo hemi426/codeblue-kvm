@@ -1,10 +1,12 @@
 # Hardware
 
+**What to buy:** see [BOM.md](BOM.md) for boards, capture dongles, cables and
+video adapters, and which of them have been tested.
+
 Planned contents:
 
 - `case/`: FreeCAD source, STL and STEP exports, and printing notes for a slim,
   header-free ESP32-S3-DevKitC-1 case.
-- `BOM.md`: tested boards, capture dongles, cables and adapters.
 - `labels/`: label text for the case and the HOST/TARGET cables.
 - **VBUS sense modification** (optional): a two-resistor divider from the
   native USB port's VBUS to a spare GPIO, so the board can tell a sleeping
@@ -34,6 +36,10 @@ Select-String -Path "$env:LOCALAPPDATA\CodeBlue\libvlc.log" -Pattern 'EnumDevice
 ```
 
 ## Tested targets
+
+Tried CodeBlue on a machine that isn't listed, or found one that misbehaves?
+Please report it with the **Tested target** issue form on GitHub, so it can
+be added here.
 
 What the target's firmware or OS accepted from the CodeBlue firmware
 (`firmware/`, protocol v1). "Report" or "boot" is the protocol the target put
