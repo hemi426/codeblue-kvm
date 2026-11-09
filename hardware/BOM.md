@@ -38,7 +38,9 @@ probably wired like the v1.1: rebuild with `-DBOARD=devkitc-v1.1`.
 | USB Video | `534D:2109` | MacroSilicon MS2109 (USB 2) | MJPG: 1080p at 30 fps, 720p at 60. YUY2: 1080p at 5 fps, 720p at 10, 640x480 at 30. | Tested |
 | USB3.0 capture, sold as USB 3.0 ([Amazon](https://www.amazon.com/dp/B091NWB4RJ)) | `345F:2109` | MS2109 family (USB 2), despite the label | MJPG: 1080p at 60 fps, pixel-perfect at 1:1. YUY2: 1080p at 10 fps, 720p at 25, 640x480 at 60. The better of the two. | Tested |
 
-**Use MJPG.** At 1080p, USB 2 dongles only reach full frame rate with MJPG.
+**Use MJPG, and when in doubt, set FPS to Auto.** At 1080p, USB 2 dongles
+only reach full frame rate with MJPG, and asking for a frame rate a format
+doesn't offer (YUY2 at 1080p and 30 fps, say) gives a black screen.
 YUY2 also shows text artifacts in the viewer, even when the frame rate is
 fine: libVLC 3 hands packed YUY2 straight to its Direct3D 11 output, which
 distorts thin strokes. Snapshots are unaffected, since they skip the display

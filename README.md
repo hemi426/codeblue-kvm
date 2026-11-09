@@ -136,7 +136,10 @@ not on your computer), and that the board has been flashed with the CodeBlue
 firmware (see [firmware/README.md](firmware/README.md)).
 
 **Black video?** Make sure no other program (OBS, VLC, the Camera app) has
-the capture device open. If it still fails, the status bar names the problem,
+the capture device open. **When in doubt, set FPS to Auto:** most dongles only
+offer some combinations of format, size and frame rate (YUY2 at 1080p is
+often just 5 or 10 fps), and asking for one they lack gives a black screen.
+The status bar says when that's the cause. Otherwise it names the problem,
 and `%LOCALAPPDATA%\CodeBlue\libvlc.log` has the details.
 
 **Video lag?** Keep **Format** on MJPG and **Cache ms** around 50. Many

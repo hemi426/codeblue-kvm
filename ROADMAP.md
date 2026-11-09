@@ -16,8 +16,10 @@ things worth doing, kept in one place so they don't get lost.
 
 ## Before going public
 
-- [ ] **Slim the viewer:** x64 only, an allowlist of the libVLC plugins we
-      actually use, and perhaps a framework-dependent build.
+- [x] **Slim the viewer:** x64 only and an allowlist of the libVLC plugins
+      we actually use (338 MB of build output down to about 30).
+- [ ] **Viewer size, optional:** a framework-dependent build (testers install
+      the .NET Desktop Runtime once) would leave out the .NET runtime too.
 - [ ] **Release workflow:** a `v*` tag builds the merged firmware image (per
       board preset) and the viewer zip, and attaches them to a GitHub release
       with flashing instructions and a note about the SmartScreen warning.
@@ -57,8 +59,19 @@ things worth doing, kept in one place so they don't get lost.
       that list, an Auto setting could pick MJPG at 1920x1080 at the highest
       frame rate the dongle offers there (60 on the newer MS2109, 30 on the
       older). Until then, the default stays 30 fps.
+- [ ] Optional audio from the dongle: an Audio checkbox (off by default)
+      that pairs the dongle's USB audio input with its video device. Needs a
+      real audio output, the uncompressed-audio decoder and perhaps a
+      resampler back in the allowlist (under 2 MB). Favour low latency over
+      lip sync. (Today, Windows' "Listen to this device" on the dongle's audio
+      input works as a stopgap.)
+- [ ] libVLC 4, on a separate branch, once 4.0 ships as a stable release with
+      NuGet packages: mainly for its reworked video output (which should fix
+      the YUY2 text artifacts) and asynchronous stop.
 - [ ] Someday: Media Foundation instead of libVLC (much smaller, Windows
-      only), and a viewer for macOS or Linux.
+      only). It would also drop avcodec's 19 MB: Windows has its own MJPEG
+      decoder, but libVLC 3's mft plugin fails to set it up, so only a native
+      Media Foundation viewer could use it. And a viewer for macOS or Linux.
 
 ## Case
 
@@ -66,9 +79,11 @@ A parametric FreeCAD model, driven by a spreadsheet, so variants share one
 base design and fixing the fit fixes them all.
 
 - [ ] Base case for the ESP32-S3-DevKitC-1, with no headers soldered.
-- [ ] A shallow pocket under the USB end of the header row for the VBUS sense
-      resistors, so the mod uses component leads in the header holes
-      (suggested pin GPIO14, next to GND; confirm on the silkscreen).
+- [ ] Room for the VBUS sense resistors, which use component leads in the
+      plated header holes (suggested pin GPIO14, next to GND; confirm on the
+      silkscreen): a shallow pocket under the USB end of the header row for
+      the 15 kΩ (GPIO14 to GND), and lid clearance on top for the 10 kΩ, which
+      runs from the IN-OUT pad (top side) to the GPIO14 hole.
 - [ ] Options:
   - [ ] Logo: debossed, embossed, or none (single-colour friendly).
   - [ ] Tactile port markers so HOST and TARGET can be told apart by feel

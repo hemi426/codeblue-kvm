@@ -78,6 +78,8 @@ internal sealed class MainForm : Form
     private readonly object _vlcLogLock = new();
     private long _vlcLogBytes;
     private long _lastErrorPost;
+    private volatile bool _captureModeUnsupported; // libVLC said the device lacks the requested mode
+    private CaptureOptions? _lastCaptureOptions;
 
     private bool _fullscreen;
     private FormWindowState _savedState;
@@ -96,7 +98,9 @@ internal sealed class MainForm : Form
         // No renderer (video output) choice: in libVLC 3, embedding the player in our
         // window resets its "vout" setting to automatic, overriding both --vout and a
         // per-media :vout. libVLC 4 adds proper output selection; revisit then.
-        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--verbose=2");
+        // CodeBlue captures no audio; name the do-nothing output, which libVLC
+        // wouldn't pick by itself (and the real ones aren't shipped).
+        _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--aout=adummy", "--verbose=2");
         OpenVlcLog();
         _player = new MediaPlayer(_libVlc)
         {
@@ -114,7 +118,9 @@ internal sealed class MainForm : Form
         _player.EncounteredError += (_, _) =>
         {
             WriteLog("player: encountered error");
-            PostToUi(() => SetStatus($"Video playback failed. Details in {VlcLogPath}"));
+            PostToUi(() => SetStatus(_captureModeUnsupported
+                ? UnsupportedModeText()
+                : $"Video playback failed. Details in {VlcLogPath}"));
         };
 
         // The player is attached in OnShown, once this control has its final window handle.
@@ -411,6 +417,8 @@ internal sealed class MainForm : Form
         _player.AspectRatio = null; // back to automatic until ApplySquarePixels sees the new stream
 
         string[] vlcOptions = options.ToVlcOptions();
+        _captureModeUnsupported = false;
+        _lastCaptureOptions = options;
         WriteLog($"codeblue: opening dshow:// {string.Join(' ', vlcOptions)}");
         bool started;
         using (var media = new Media(_libVlc, "dshow://", FromType.FromLocation, vlcOptions))
@@ -979,6 +987,12 @@ internal sealed class MainForm : Form
     {
         WriteLog($"{e.Level,-7} {e.Module}: {e.Message}", e.Level);
 
+        // The usual cause of a black screen after changing Format, Size or FPS:
+        // the device doesn't offer that combination (YUY2 at 1080p is often
+        // only 5 or 10 fps). Remember it, so the failure can say so plainly.
+        if (e.Module == "dshow" && e.Message.Contains("does not support required parameters", StringComparison.Ordinal))
+            _captureModeUnsupported = true;
+
         if (e.Level == LogLevel.Error && !IsRoutineVlcError(e.Message))
         {
             // libVLC can emit errors in bursts; update the status bar at most twice a second.
@@ -998,7 +1012,27 @@ internal sealed class MainForm : Form
     private static readonly string[] RoutineVlcErrors =
     [
         "is called too late", // ES_OUT_SET_(GROUP_)PCR ... (pts_delay increased to N ms)
+        "Timestamp conversion failed", // uncompressed (YUY2) frames arrive without a stream clock
+        "Could not convert timestamp",
+        "SetThumbNailClip failed", // the taskbar thumbnail, while switching full screen
+        "does not exist", // "option ... does not exist": settings of plugins the viewer doesn't ship
     ];
+
+    /// <summary>Status text for a device that doesn't offer the requested format, size and frame rate.</summary>
+    private string UnsupportedModeText()
+    {
+        var o = _lastCaptureOptions;
+        var asked = new List<string>();
+        if (o is not null)
+        {
+            if (o.Format != CaptureOptions.Auto) asked.Add(o.Format);
+            if (o.Size != CaptureOptions.Auto) asked.Add(o.Size);
+            if (o.Fps != CaptureOptions.Auto) asked.Add($"{o.Fps} fps");
+        }
+        string what = asked.Count > 0 ? $" ({string.Join(", ", asked)})" : "";
+        return $"The capture device doesn't offer that format, size and frame rate{what}. " +
+               "Set FPS to Auto, or try a smaller size or MJPG.";
+    }
 
     private static bool IsRoutineVlcError(string message) =>
         RoutineVlcErrors.Any(r => message.Contains(r, StringComparison.Ordinal));

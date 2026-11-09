@@ -9,9 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="LibVLCSharp.WinForms" Version="3.10.2" />
-    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
-    <!-- GPL-licensed libVLC plugins, published separately. Includes DirectShow
-         capture (dshow), which the viewer needs. Keep in step with the line above. -->
+    <!-- The GPL build of libVLC (a complete libVLC), for its DirectShow capture
+         plugin. Which of its files ship is set in CodeBlue.Viewer.csproj. -->
     <PackageVersion Include="VideoLAN.LibVLC.Windows.GPL" Version="3.0.24" />
     <PackageVersion Include="System.IO.Ports" Version="10.0.0" />
     <PackageVersion Include="System.Management" Version="10.0.0" />

@@ -15,6 +15,11 @@
     <ApplicationIcon>CodeBlue.ico</ApplicationIcon>
     <!-- Lets the project restore and compile on non-Windows hosts (CI, Linux dev boxes). -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- The viewer is x64 only (Windows on ARM runs it under emulation), so
+         ship only libVLC's x64 build; by default the package copies all three. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <VlcWindowsArm64Enabled>false</VlcWindowsArm64Enabled>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,35 +27,47 @@
     <EmbeddedResource Include="CodeBlue.ico" LogicalName="CodeBlue.ico" />
   </ItemGroup>
 
+  <!--
+    The libVLC files to ship: just what CodeBlue uses, out of about 330
+    plugins (145 MB down to about 30). Found by running the viewer with every
+    plugin present and reading "using ... module" in libvlc.log. If a future
+    feature needs another plugin, add it here; a missing one shows up in the
+    log as "no ... modules matched".
+  -->
+  <ItemGroup>
+    <VlcWindowsX64IncludeFiles Include="libvlc.dll;libvlccore.dll" />
+    <!-- Capture: DirectShow reads the dongle. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\access\libdshow_plugin.dll" />
+    <!-- Decoding: avcodec for MJPG (the large one), rawvideo for YUY2 and NV12.
+         Tried and rejected as smaller MJPG decoders: jpeg (still images only)
+         and mft (Windows' decoders, which libVLC 3 fails to set up). -->
+    <VlcWindowsX64IncludeFiles Include="plugins\codec\libavcodec_plugin.dll;plugins\codec\librawvideo_plugin.dll" />
+    <!-- Snapshots are saved as PNG. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\codec\libpng_plugin.dll" />
+    <!-- Colour conversion. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\video_chroma\libswscale_plugin.dll;plugins\video_chroma\libyuvp_plugin.dll;plugins\video_chroma\libchain_plugin.dll" />
+    <!-- Display: Direct3D 11, with Direct3D 9 and plain GDI as fallbacks for
+         old GPUs, VMs and Remote Desktop; drawable embeds the picture in our
+         window, and winhibit keeps the screen awake while it plays. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\video_output\libdirect3d11_plugin.dll;plugins\d3d11\libdirect3d11_filters_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_output\libdirect3d9_plugin.dll;plugins\d3d9\libdirect3d9_filters_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_output\libwingdi_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_output\libdrawable_plugin.dll;plugins\video_output\libwinhibit_plugin.dll" />
+    <!-- On-screen text: the "snapshot saved" message over the video, the only
+         confirmation visible in full screen. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\text_renderer\libfreetype_plugin.dll" />
+    <!-- A stand-in for audio output, which CodeBlue doesn't use, so libVLC
+         doesn't need a real one. -->
+    <VlcWindowsX64IncludeFiles Include="plugins\audio_output\libadummy_plugin.dll" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="LibVLCSharp.WinForms" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" GeneratePathProperty="true" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows.GPL" GeneratePathProperty="true" />
+    <!-- The GPL build of libVLC: a complete libVLC whose DirectShow plugin
+         reads capture devices (the LGPL build doesn't include it). -->
+    <PackageReference Include="VideoLAN.LibVLC.Windows.GPL" />
     <PackageReference Include="System.IO.Ports" />
     <PackageReference Include="System.Management" />
   </ItemGroup>
-
-  <!--
-    Copy the GPL libVLC plugins (DirectShow capture among them) ourselves.
-    Both libVLC packages define their copy step as a target with the same name,
-    CollectVlcFilesToCopyWindows, and MSBuild keeps only the last definition, so
-    the GPL package's own copy never runs.
-
-    Only DLLs the core package doesn't already provide are copied, so the two
-    packages never compete for the same output file. plugins.dat (libVLC's
-    plugin cache) comes from the core package; libVLC scans any plugin the
-    cache doesn't list.
-  -->
-  <Target Name="CodeBlueCopyGplVlcPlugins" BeforeTargets="BeforeBuild"
-          Condition="'$(PkgVideoLAN_LibVLC_Windows_GPL)' != ''">
-    <ItemGroup>
-      <_CodeBlueGplVlcPlugin Include="$(PkgVideoLAN_LibVLC_Windows_GPL)\build\x64\plugins\**\*.dll" />
-      <Content Include="@(_CodeBlueGplVlcPlugin)"
-               Condition="!Exists('$(PkgVideoLAN_LibVLC_Windows)\build\x64\plugins\%(_CodeBlueGplVlcPlugin.RecursiveDir)%(_CodeBlueGplVlcPlugin.Filename)%(_CodeBlueGplVlcPlugin.Extension)')">
-        <Link>libvlc\win-x64\plugins\%(_CodeBlueGplVlcPlugin.RecursiveDir)%(_CodeBlueGplVlcPlugin.Filename)%(_CodeBlueGplVlcPlugin.Extension)</Link>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </Content>
-    </ItemGroup>
-  </Target>
 
 </Project>

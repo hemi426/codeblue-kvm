@@ -72,7 +72,13 @@ dotnet publish viewer\CodeBlue.Viewer -c Release -r win-x64 --self-contained
 ```
 
 The output folder runs on machines without .NET installed. It includes the
-libVLC runtime, so expect it to be fairly large.
+.NET runtime and libVLC.
+
+The viewer ships only the parts of libVLC it uses (x64 only, and about 20 of
+its roughly 330 plugins), listed in `CodeBlue.Viewer.csproj` under
+`VlcWindowsX64IncludeFiles`. If a change to the viewer needs another libVLC
+feature, `libvlc.log` says "no ... modules matched", and the fix is adding
+that plugin to the list.
 
 ## Firmware (ESP32-S3)
 
