@@ -2,21 +2,19 @@
 
 # CodeBlue
 
-A pocket crash cart: control a headless or misbehaving PC from your laptop, BIOS
+A pocket crash cart: control a headless or misbehaving PC from your computer, BIOS
 screens included, using an ESP32-S3 dev board and a cheap HDMI-to-USB capture
 dongle.
 
 ```
- your laptop                                   target PC
- ┌─────────────┐   USB (serial)   ┌──────────┐   USB (keyboard + mouse)
- │  CodeBlue   │◄────────────────►│ ESP32-S3 │──────────────────────────►┐
- │   viewer    │                  └──────────┘                           │
- │             │   USB (video)    ┌──────────┐   HDMI                    │
- │             │◄─────────────────│ capture  │◄──────────────────────────┤
- └─────────────┘                  │  dongle  │                           │
-                                  └──────────┘                     ┌─────┴─────┐
-                                                                   │  target   │
-                                                                   └───────────┘
+ your computer                                                       target PC
+┌─────────────┐  USB (serial)  ┌──────────┐  USB (keyboard + mouse) ┌──────────┐
+│   CodeBlue  │◄──────────────►│ ESP32-S3 │────────────────────────►│ USB port │
+│    viewer   │                └──────────┘                         │          │
+│             │  USB (video)   ┌──────────┐  HDMI                   │          │
+│             │◄───────────────│ capture  │◄────────────────────────│ HDMI out │
+└─────────────┘                │  dongle  │                         └──────────┘
+                               └──────────┘
 ```
 
 The target sees an ordinary USB keyboard and mouse and an ordinary monitor; it
@@ -59,9 +57,9 @@ See [docs/BUILDING.md](docs/BUILDING.md) for details.
 
 ## Using the viewer
 
-1. Plug the ESP32's **UART** port into your laptop and its **native USB** port
+1. Plug the ESP32's **UART** port into your computer and its **native USB** port
    into the target. Plug the capture dongle's HDMI into the target and its USB
-   into your laptop (a USB 3 port if the dongle supports it).
+   into your computer (a USB 3 port if the dongle supports it).
 2. Pick the board's serial port and the video device, then **Connect**. The
    picture appears straight away, but nothing you type or click reaches the
    target yet, so it's safe to just watch. (Tick **Video only** to watch a
@@ -134,7 +132,7 @@ link (cable, port, or the target not having enumerated the device).
 
 **"No CodeBlue firmware found on this port"?** Check you picked the board's
 UART port, not its native USB port (the native one shows up on the target,
-not on your laptop), and that the board has been flashed with the CodeBlue
+not on your computer), and that the board has been flashed with the CodeBlue
 firmware (see [firmware/README.md](firmware/README.md)).
 
 **Black video?** Make sure no other program (OBS, VLC, the Camera app) has
@@ -145,7 +143,7 @@ and `%LOCALAPPDATA%\CodeBlue\libvlc.log` has the details.
 dongles can only deliver 1080p at full frame rate as MJPEG.
 
 **Blurry or broken-looking text?** Use MJPG rather than YUY2 (see
-[hardware/README.md](hardware/README.md)), and turn on **1:1 pixels**
+[hardware/BOM.md](hardware/BOM.md)), and turn on **1:1 pixels**
 (Ctrl+Alt+1) when the window or screen is larger than the capture. For a
 record of exactly what the target showed, use **Snapshot** (F12): it saves
 the captured frame itself, unscaled.

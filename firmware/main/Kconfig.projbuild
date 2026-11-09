@@ -27,8 +27,9 @@ menu "CodeBlue"
         default 0x303A
         help
             What the target sees. The default is Espressif's vendor ID with
-            TinyUSB's generic HID product ID; a dedicated product ID can be
-            requested from Espressif for open-source projects.
+            TinyUSB's default HID product ID, which Espressif allows for
+            devices using standard USB classes, as CodeBlue does. Change
+            these only for a product with its own allocated IDs.
 
     config CODEBLUE_USB_PID
         hex "USB product ID"

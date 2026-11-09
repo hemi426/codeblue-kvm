@@ -32,10 +32,11 @@ things worth doing, kept in one place so they don't get lost.
       site itself, since browsers can't fetch GitHub release downloads from
       another site. Chrome and Edge only (Web Serial), so the esptool
       command stays in the docs as the fallback.
-- [ ] **USB product ID** from Espressif (free for open-source projects; it
-      takes a while, so ask early).
-- [ ] **Housekeeping:** CHANGELOG, LICENSE and credits check, a CI status
-      badge in the README, then make the repository public.
+- [ ] **Housekeeping:** CHANGELOG, a copyright line (full name) in the README
+      and LICENSE, credits check, a CI status badge in the README, then make
+      the repository public.
+- [ ] **CI:** skip builds for changes that only touch
+      `.github/ISSUE_TEMPLATE/` (with the release workflow's `ci.yml` changes).
 
 ## Firmware
 
@@ -50,7 +51,12 @@ things worth doing, kept in one place so they don't get lost.
 
 - [ ] Horizontal scrolling (`pan`) from tilt wheels and touchpads.
 - [ ] Polish: dropdown widths, better DirectShow device listing, settings per
-      capture device, and a view of the modes a dongle offers.
+      capture device, and a view of the modes a dongle offers. Ideally the
+      Size and FPS lists come from the dongle itself: the fixed list offers
+      sizes some dongles don't support (the MS2109 has no 1600x900). With
+      that list, an Auto setting could pick MJPG at 1920x1080 at the highest
+      frame rate the dongle offers there (60 on the newer MS2109, 30 on the
+      older). Until then, the default stays 30 fps.
 - [ ] Someday: Media Foundation instead of libVLC (much smaller, Windows
       only), and a viewer for macOS or Linux.
 
@@ -60,6 +66,9 @@ A parametric FreeCAD model, driven by a spreadsheet, so variants share one
 base design and fixing the fit fixes them all.
 
 - [ ] Base case for the ESP32-S3-DevKitC-1, with no headers soldered.
+- [ ] A shallow pocket under the USB end of the header row for the VBUS sense
+      resistors, so the mod uses component leads in the header holes
+      (suggested pin GPIO14, next to GND; confirm on the silkscreen).
 - [ ] Options:
   - [ ] Logo: debossed, embossed, or none (single-colour friendly).
   - [ ] Tactile port markers so HOST and TARGET can be told apart by feel
@@ -72,14 +81,18 @@ base design and fixing the fit fixes them all.
 - [ ] Script the STL export for the common combinations, ship them in
       releases, and regenerate them in CI.
 - [ ] Labels for the HOST and TARGET cables.
-- [ ] Decide the hardware licence (CERN-OHL-S or CC BY-SA 4.0).
+- [ ] Hardware licence: leaning CERN-OHL-S (strongly reciprocal, matching
+      the software's GPL), over CC BY-SA 4.0.
 
 ## Kit and testing
 
 - [ ] Video adapters for targets without HDMI: USB-C to HDMI (the port needs
       DisplayPort Alt Mode or Thunderbolt), DisplayPort to HDMI, Mini
       DisplayPort to HDMI, and a powered VGA to HDMI converter.
-- [ ] A second ESP32-S3 board, so one can stay on known-good firmware.
+- [ ] A second ESP32-S3 board, so one can stay on known-good firmware
+      (ordered: N16R8 DevKitC-1 clones, from the same vendor as the N8R2).
+- [ ] BOM: mark the DORHEA N16R8 tested once one has been flashed, and add
+      a genuine MS2130 (USB 3) dongle once one has been checked.
 - [ ] More targets for `hardware/README.md`: a Mac (an Intel Mac's Option-key
       boot picker), more Dells, servers.
 
@@ -87,3 +100,8 @@ base design and fixing the fit fixes them all.
 
 - [x] Removed the legacy text protocol (the Arduino firmware's). The last
       commit that had it is tagged `legacy-protocol-final`.
+- [x] USB product ID: none needed. Espressif allows its vendor ID with
+      TinyUSB's default product IDs for devices using standard USB classes,
+      and CodeBlue is plain HID. A dedicated ID (free, via a pull request to
+      espressif/usb-pids) only matters for a product that wants its own
+      identity.

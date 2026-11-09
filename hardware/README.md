@@ -1,7 +1,8 @@
 # Hardware
 
 **What to buy:** see [BOM.md](BOM.md) for boards, capture dongles, cables and
-video adapters, and which of them have been tested.
+video adapters, which of them have been tested, and how to check a dongle
+before relying on it.
 
 Planned contents:
 
@@ -12,28 +13,6 @@ Planned contents:
   native USB port's VBUS to a spare GPIO, so the board can tell a sleeping
   target from an unplugged one. See "VBUS sense" in
   [../docs/PROTOCOL.md](../docs/PROTOCOL.md). Instructions to follow.
-
-## Tested so far
-
-| Part | Notes |
-|------|-------|
-| ESP32-S3-DevKitC-1 clone, N8R2 | RGB LED on GPIO48. Leave the IN-OUT and USB-OTG solder pads open. |
-| USB 2.0 HDMI capture dongle ("USB Video") | Needs Format = MJPG for usable 1080p. |
-| "USB3.0 capture" dongle (sold as USB 3.0) | Behaves as a USB 2 device: YUY2 only reaches 1920x1080 at 10 fps, whatever the port. Use MJPG: 1080p at 30 fps, pixel-perfect at 1:1. |
-
-**Use MJPG for capture.** YUY2 also shows text artifacts in the viewer: libVLC 3
-hands packed YUY2 straight to its Direct3D 11 output, which distorts thin
-strokes. Snapshots are unaffected, since they skip the display path. The
-viewer's renderer can't be changed under libVLC 3 (see the comment in
-`MainForm.cs`), so there is no workaround short of libVLC 4.
-
-When testing a new dongle, check its real USB speed with USB Tree View
-("SuperSpeed" is USB 3, "High-Speed" is USB 2), and list the modes it offers
-from `%LOCALAPPDATA%\CodeBlue\libvlc.log` after connecting:
-
-```powershell
-Select-String -Path "$env:LOCALAPPDATA\CodeBlue\libvlc.log" -Pattern 'EnumDeviceCaps' | ForEach-Object Line
-```
 
 ## Tested targets
 
