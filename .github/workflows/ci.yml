@@ -56,13 +56,16 @@ jobs:
           esp_idf_version: ${{ steps.idf.outputs.version }}
           target: esp32s3
           path: firmware
-          command: idf.py -DBOARD=${{ matrix.board }} build
+          # merge-bin also writes build/merged-binary.bin: bootloader,
+          # partition table and app in one image that flashes at 0x0.
+          command: idf.py -DBOARD=${{ matrix.board }} build merge-bin
 
       - name: Keep the binaries
         uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ matrix.board }}
           path: |
+            firmware/build/merged-binary.bin
             firmware/build/codeblue.bin
             firmware/build/bootloader/bootloader.bin
             firmware/build/partition_table/partition-table.bin

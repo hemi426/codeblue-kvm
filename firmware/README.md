@@ -73,7 +73,14 @@ firmware/build/test_frame
 ```
 
 CI (`.github/workflows/ci.yml`) runs it on every push, along with builds for
-both board presets.
+both board presets. Each build is kept as a zip on the run's page; its
+`merged-binary.bin` holds the bootloader, partition table and app in one
+image, so flashing it takes one command (ESP-IDF's Python has esptool, or
+`pip install esptool`):
+
+```sh
+python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 merged-binary.bin
+```
 
 The first build downloads the managed components listed in
 `main/idf_component.yml`. See [../docs/BUILDING.md](../docs/BUILDING.md).
