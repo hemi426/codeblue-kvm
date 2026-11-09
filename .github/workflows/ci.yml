@@ -70,14 +70,8 @@ jobs:
           if-no-files-found: error
 
   viewer:
-    # Both configurations, so the legacy protocol's eventual removal is
-    # already known to compile.
-    name: Viewer (legacy protocol ${{ matrix.legacy && 'on' || 'off' }})
+    name: Viewer
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        legacy: [true, false]
     steps:
       - uses: actions/checkout@v6
 
@@ -86,4 +80,4 @@ jobs:
           global-json-file: global.json
 
       - name: Build
-        run: dotnet build viewer/CodeBlue.Viewer -c Release -p:CodeBlueLegacyProtocol=${{ matrix.legacy }}
+        run: dotnet build viewer/CodeBlue.Viewer -c Release

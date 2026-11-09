@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.IO.Ports;
-using System.Text;
 
 namespace CodeBlue.Viewer.Link;
 
@@ -10,7 +9,7 @@ internal delegate void SerialDataHandler(ReadOnlySpan<byte> data);
 /// <summary>
 /// Serial port with a dedicated writer thread, so input handlers (including the
 /// keyboard hook, which Windows times out if it blocks) only ever enqueue, and
-/// an optional reader thread for protocols that listen.
+/// a reader thread for what the board sends back.
 ///
 /// DTR and RTS are held low. On ESP32 DevKitC boards those lines drive the
 /// auto-reset circuit, and toggling them on open can reset the board or drop it
@@ -47,8 +46,6 @@ internal sealed class SerialTransport : IDisposable
         try { _queue.TryAdd(data); }
         catch (InvalidOperationException) { /* shutting down */ }
     }
-
-    public void Send(string data) => Send(Encoding.ASCII.GetBytes(data));
 
     /// <summary>Starts a reader thread that hands every received chunk to <paramref name="onData"/>.</summary>
     public void StartReading(SerialDataHandler onData)

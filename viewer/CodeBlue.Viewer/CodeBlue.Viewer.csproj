@@ -17,23 +17,6 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
-  <!--
-    Legacy text protocol (DEPRECATED).
-    Speaks the line-based "p 136 0 0" format used by the original Arduino firmware.
-    Enabled by default until the CodeBlue binary protocol firmware exists.
-    Build without it:  dotnet build -p:CodeBlueLegacyProtocol=false
-    This option and the code behind it will be removed in a future release.
-  -->
-  <PropertyGroup>
-    <CodeBlueLegacyProtocol Condition="'$(CodeBlueLegacyProtocol)' == ''">true</CodeBlueLegacyProtocol>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(CodeBlueLegacyProtocol)' == 'true'">
-    <DefineConstants>$(DefineConstants);CODEBLUE_LEGACY_PROTOCOL</DefineConstants>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(CodeBlueLegacyProtocol)' != 'true'">
-    <Compile Remove="Link/LegacyTextLink.cs" />
-  </ItemGroup>
-
   <ItemGroup>
     <!-- Also embedded, so the window shows it however the app is started. -->
     <EmbeddedResource Include="CodeBlue.ico" LogicalName="CodeBlue.ico" />

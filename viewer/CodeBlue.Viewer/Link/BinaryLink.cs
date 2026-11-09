@@ -21,7 +21,7 @@ internal sealed class BinaryLink : IKvmLink
     private const int DefaultTimeoutMs = 500;
     private const int DebuggerTimeoutMs = 30000; // so breakpoints don't end the session
 
-    // Same pacing as the legacy link: a gaming mouse can report 1000 times a second.
+    // A gaming mouse can report 1000 times a second; send motion at most every 8 ms.
     private static readonly TimeSpan MotionInterval = TimeSpan.FromMilliseconds(8);
 
     private static class Msg
@@ -114,8 +114,8 @@ internal sealed class BinaryLink : IKvmLink
             if (_gotInfo.Wait(250)) break;
         }
         if (!_gotInfo.IsSet)
-            throw new KvmLinkException("No CodeBlue firmware found on this port. (A board still running the " +
-                                       "Arduino firmware needs the \"Legacy text\" protocol.)");
+            throw new KvmLinkException("No CodeBlue firmware found on this port. Check that it's the board's " +
+                                       "UART port, and that the board has the CodeBlue firmware.");
         if (_infoMajor != ProtocolMajor)
             throw new KvmLinkException($"The board speaks CodeBlue protocol {_infoMajor}.{_infoMinor}; this viewer " +
                                        $"speaks {ProtocolMajor}. Update the viewer or the firmware so they match.");

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CodeBlue.Viewer;
 
@@ -7,7 +8,12 @@ internal sealed class ViewerSettings
 {
     public string? SerialPort { get; set; }
     public string? VideoDevice { get; set; }
+    public bool VideoOnly { get; set; }
+
+    /// <summary>Read from older settings files only: the protocol choice that VideoOnly replaced.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Protocol { get; set; }
+
     public string Format { get; set; } = "MJPG";
     public string Size { get; set; } = "1920x1080";
     public string Fps { get; set; } = "30";
@@ -26,7 +32,15 @@ internal sealed class ViewerSettings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<ViewerSettings>(File.ReadAllText(FilePath)) ?? new();
+            {
+                var settings = JsonSerializer.Deserialize<ViewerSettings>(File.ReadAllText(FilePath)) ?? new();
+                if (settings.Protocol is not null)
+                {
+                    settings.VideoOnly = settings.Protocol.StartsWith("None", StringComparison.Ordinal);
+                    settings.Protocol = null;
+                }
+                return settings;
+            }
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

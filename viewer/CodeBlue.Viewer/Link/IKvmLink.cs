@@ -4,9 +4,8 @@ namespace CodeBlue.Viewer.Link;
 
 /// <summary>
 /// The viewer's view of the firmware. Everything above this interface works in
-/// HID terms (usage IDs, button states, deltas); each implementation turns those
-/// into whatever its wire protocol needs. The UI never knows which protocol is
-/// in use, so dropping the legacy one later touches only this folder.
+/// HID terms (usage IDs, button states, deltas); the implementation turns those
+/// into whatever its wire protocol needs, so protocol details stay in this folder.
 /// </summary>
 internal interface IKvmLink : IDisposable
 {
@@ -85,35 +84,12 @@ internal readonly record struct TargetStatus(byte Flags, byte KeyboardLeds)
 /// <summary>A board that answered, but not in a way we can use (no firmware, wrong version).</summary>
 internal sealed class KvmLinkException(string message) : IOException(message);
 
-/// <summary>Available link protocols, as offered in the UI.</summary>
+/// <summary>Opens links to the board.</summary>
 internal static class KvmLinks
 {
-    public const string CodeBlue = "CodeBlue";
-    public const string VideoOnly = "None (video only)";
-
-#if CODEBLUE_LEGACY_PROTOCOL
-    public const string LegacyText = "Legacy text (deprecated)";
-#endif
-
-    public static IReadOnlyList<string> Available { get; } =
-    [
-        CodeBlue,
-#if CODEBLUE_LEGACY_PROTOCOL
-        LegacyText,
-#endif
-        VideoOnly,
-    ];
-
     /// <summary>
-    /// Opens the named link on a serial port, or returns null for video-only.
-    /// May block for up to two seconds while the board answers.
+    /// Opens the CodeBlue protocol on a serial port. Blocks for up to two
+    /// seconds while the board answers; throws if no compatible board does.
     /// </summary>
-    public static IKvmLink? Open(string protocol, string portName) => protocol switch
-    {
-        CodeBlue => BinaryLink.Open(portName),
-#if CODEBLUE_LEGACY_PROTOCOL
-        LegacyText => new LegacyTextLink(new SerialTransport(portName, LegacyTextLink.BaudRate)),
-#endif
-        _ => null,
-    };
+    public static IKvmLink Open(string portName) => BinaryLink.Open(portName);
 }

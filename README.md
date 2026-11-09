@@ -29,9 +29,7 @@ Early. What works today:
 - **Viewer** (Windows): low-latency video, keyboard and mouse capture with an
   absolute or relative pointer (see **Mouse** below), full screen, snapshots,
   Ctrl+Alt+Del, the target's status (connected, asleep, Caps Lock), and
-  automatic reconnection if the board drops out. Speaks the CodeBlue protocol,
-  and the original Arduino firmware's protocol (deprecated) for boards that
-  still run it.
+  automatic reconnection if the board drops out.
 - **Firmware** (ESP-IDF): a keyboard and a relative mouse that both work in
   BIOS setup screens (boot protocol), plus an absolute pointer, for the
   target; and a binary protocol with heartbeats both ways, so a crashed viewer
@@ -64,8 +62,10 @@ See [docs/BUILDING.md](docs/BUILDING.md) for details.
 1. Plug the ESP32's **UART** port into your laptop and its **native USB** port
    into the target. Plug the capture dongle's HDMI into the target and its USB
    into your laptop (a USB 3 port if the dongle supports it).
-2. Pick the serial port, the protocol (**CodeBlue** for this project's
-   firmware), and the video device, then **Connect**.
+2. Pick the board's serial port and the video device, then **Connect**. The
+   picture appears straight away, but nothing you type or click reaches the
+   target yet, so it's safe to just watch. (Tick **Video only** to watch a
+   screen without a board.)
 3. Click **Capture** (or press Ctrl+Alt+C) to send keyboard and mouse to the
    target. An amber banner shows while they are captured.
 
@@ -134,8 +134,8 @@ link (cable, port, or the target not having enumerated the device).
 
 **"No CodeBlue firmware found on this port"?** Check you picked the board's
 UART port, not its native USB port (the native one shows up on the target,
-not on your laptop). A board still running the Arduino firmware needs the
-**Legacy text** protocol instead.
+not on your laptop), and that the board has been flashed with the CodeBlue
+firmware (see [firmware/README.md](firmware/README.md)).
 
 **Black video?** Make sure no other program (OBS, VLC, the Camera app) has
 the capture device open. If it still fails, the status bar names the problem,
@@ -156,8 +156,8 @@ release capture first (Ctrl+Alt).
 ## Credits
 
 Inspired by [KeyboardAndMouseControl](https://github.com/alpharesearch/KeyboardAndMouseControl)
-by Markus Schulz, whose serial protocol the viewer still speaks for
-compatibility. CodeBlue is an independent implementation.
+by Markus Schulz. CodeBlue is an independent implementation with its own
+firmware and protocol.
 
 ## License
 

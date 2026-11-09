@@ -42,7 +42,8 @@ internal sealed class MainForm : Form
     private readonly VideoView _video;
 
     private readonly FlowLayoutPanel _toolbar;
-    private readonly ComboBox _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _mouseBox;
+    private readonly ComboBox _portBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _mouseBox;
+    private readonly CheckBox _videoOnlyBox;
     private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly CheckBox _nativeBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
@@ -50,11 +51,11 @@ internal sealed class MainForm : Form
     private readonly Label _banner;
 
     private IKvmLink? _link;
-    private string? _linkPort, _linkProtocol;
+    private string? _linkPort;
 
     // After the link is lost mid-session, the viewer keeps trying to get it back.
     private readonly System.Windows.Forms.Timer _reconnectTimer;
-    private string? _reconnectPort, _reconnectProtocol, _reconnectReason;
+    private string? _reconnectPort, _reconnectReason;
     private bool _reconnectInFlight;
     private bool _videoRunning;
     private uint _videoWidth, _videoHeight; // 0 until the stream reports its size
@@ -123,8 +124,8 @@ internal sealed class MainForm : Form
         _connectButton = MakeButton("Connect", (_, _) => ToggleConnect());
         _portBox = MakeCombo(110);
         var refreshButton = MakeButton("Refresh", (_, _) => { RefreshPorts(); RefreshDevices(); });
-        _protocolBox = MakeCombo(190);
-        _protocolBox.Items.AddRange([.. KvmLinks.Available]);
+        _videoOnlyBox = new CheckBox { Text = "Video only", AutoSize = true, Margin = new Padding(10, 6, 2, 2) };
+        _videoOnlyBox.CheckedChanged += (_, _) => UpdateUi();
         _deviceBox = MakeCombo(210, editable: true);
         _formatBox = MakeCombo(80);
         _formatBox.Items.AddRange(CaptureOptions.Formats);
@@ -162,8 +163,7 @@ internal sealed class MainForm : Form
         _toolbar.Controls.AddRange(
         [
             _connectButton,
-            MakeLabel("Port"), _portBox, refreshButton,
-            MakeLabel("Protocol"), _protocolBox,
+            MakeLabel("Port"), _portBox, refreshButton, _videoOnlyBox,
             MakeLabel("Video"), _deviceBox,
             MakeLabel("Format"), _formatBox,
             MakeLabel("Size"), _sizeBox,
@@ -206,7 +206,7 @@ internal sealed class MainForm : Form
 
         RefreshPorts();
         RefreshDevices();
-        SelectItem(_protocolBox, _settings.Protocol);
+        _videoOnlyBox.Checked = _settings.VideoOnly;
         SelectItem(_formatBox, _settings.Format);
         SelectItem(_sizeBox, _settings.Size);
         SelectItem(_fpsBox, _settings.Fps);
@@ -319,8 +319,9 @@ internal sealed class MainForm : Form
     {
         bool running = _videoRunning || _link is not null;
         _connectButton.Text = running ? "Disconnect" : "Connect";
-        foreach (Control c in new Control[] { _portBox, _protocolBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _cachingBox })
+        foreach (Control c in new Control[] { _videoOnlyBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _cachingBox })
             c.Enabled = !running;
+        _portBox.Enabled = !running && !_videoOnlyBox.Checked;
 
         _captureButton.Enabled = _link is not null && !_captured;
         _cadButton.Enabled = _link is not null;
@@ -370,7 +371,7 @@ internal sealed class MainForm : Form
     {
         _settings.SerialPort = _portBox.SelectedItem as string ?? _settings.SerialPort;
         _settings.VideoDevice = _deviceBox.Text.Length > 0 ? _deviceBox.Text : _settings.VideoDevice;
-        _settings.Protocol = _protocolBox.SelectedItem as string;
+        _settings.VideoOnly = _videoOnlyBox.Checked;
         _settings.Format = _formatBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.Size = _sizeBox.SelectedItem as string ?? CaptureOptions.Auto;
         _settings.Fps = _fpsBox.SelectedItem as string ?? CaptureOptions.Auto;
@@ -417,9 +418,8 @@ internal sealed class MainForm : Form
         WriteLog($"codeblue: Play() returned {started}");
         _videoRunning = true;
 
-        string protocol = _protocolBox.SelectedItem as string ?? KvmLinks.VideoOnly;
         string? port = _portBox.SelectedItem as string;
-        if (protocol != KvmLinks.VideoOnly)
+        if (!_videoOnlyBox.Checked)
         {
             if (port is null)
             {
@@ -431,8 +431,7 @@ internal sealed class MainForm : Form
                 {
                     SetStatus($"Looking for a CodeBlue board on {port}...");
                     Cursor.Current = Cursors.WaitCursor; // the handshake can take up to two seconds
-                    var link = KvmLinks.Open(protocol, port);
-                    if (link is not null) InstallLink(link, protocol, port);
+                    InstallLink(KvmLinks.Open(port), port);
                 }
                 catch (KvmLinkException ex)
                 {
@@ -453,11 +452,10 @@ internal sealed class MainForm : Form
     }
 
     /// <summary>Makes an open link the current one and hooks up its events.</summary>
-    private void InstallLink(IKvmLink link, string protocol, string port)
+    private void InstallLink(IKvmLink link, string port)
     {
         _link = link;
         _linkPort = port;
-        _linkProtocol = protocol;
         // Events from a link we've since closed are ignored.
         link.Faulted += ex => PostToUi(() => { if (_link == link) OnLinkFault(ex); });
         link.Diagnostic += message => WriteLog($"codeblue: {message}");
@@ -497,7 +495,6 @@ internal sealed class MainForm : Form
             _link.Dispose(); // drains the queue, so the two commands above go out first
             _link = null;
             _linkPort = null;
-            _linkProtocol = null;
         }
         if (_videoRunning)
         {
@@ -547,12 +544,11 @@ internal sealed class MainForm : Form
     private void OnLinkFault(Exception ex)
     {
         if (_link is null) return;
-        string? port = _linkPort, protocol = _linkProtocol;
+        string? port = _linkPort;
         StopCapture();
         try { _link.Dispose(); } catch { /* already broken */ }
         _link = null;
         _linkPort = null;
-        _linkProtocol = null;
         WriteLog($"codeblue: link lost: {ex.GetType().Name}: {ex.Message}");
 
         // Windows reports a vanished USB serial port as "access denied" on the
@@ -564,10 +560,10 @@ internal sealed class MainForm : Form
             : ex is TimeoutException ? "it stopped responding"
             : ex.Message;
 
-        if (_videoRunning && port is not null && protocol is not null)
+        if (_videoRunning && port is not null)
         {
             // No dialog: keep the video up and quietly get the board back.
-            StartReconnect(protocol, port, reason);
+            StartReconnect(port, reason);
             UpdateUi();
             return;
         }
@@ -575,9 +571,8 @@ internal sealed class MainForm : Form
         ShowError($"Lost the board: {reason}.");
     }
 
-    private void StartReconnect(string protocol, string port, string reason)
+    private void StartReconnect(string port, string reason)
     {
-        _reconnectProtocol = protocol;
         _reconnectPort = port;
         _reconnectReason = reason;
         _reconnectTimer.Start();
@@ -586,13 +581,13 @@ internal sealed class MainForm : Form
     private void StopReconnect()
     {
         _reconnectTimer.Stop();
-        _reconnectProtocol = _reconnectPort = _reconnectReason = null;
+        _reconnectPort = _reconnectReason = null;
     }
 
     /// <summary>One reconnect attempt, off the UI thread (the handshake can take two seconds).</summary>
     private void TryReconnect()
     {
-        if (_reconnectInFlight || _link is not null || _reconnectPort is not string port || _reconnectProtocol is not string protocol)
+        if (_reconnectInFlight || _link is not null || _reconnectPort is not string port)
             return;
         if (!SerialPort.GetPortNames().Contains(port, StringComparer.OrdinalIgnoreCase))
             return; // not back yet
@@ -600,7 +595,7 @@ internal sealed class MainForm : Form
         _reconnectInFlight = true;
         Task.Run(() =>
         {
-            try { return KvmLinks.Open(protocol, port); }
+            try { return (IKvmLink?)KvmLinks.Open(port); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
             {
                 return null; // not ready yet; the timer tries again
@@ -616,7 +611,7 @@ internal sealed class MainForm : Form
                 return;
             }
             StopReconnect();
-            InstallLink(link, protocol, port);
+            InstallLink(link, port);
             WriteLog("codeblue: reconnected");
             UpdateUi();
         }), TaskScheduler.Default);

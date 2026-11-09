@@ -65,12 +65,6 @@ libVLC comes in two packages that must stay at the same version:
 capture). Without the second one, video fails with "VLC is unable to open the
 MRL 'dshow://'" in `%LOCALAPPDATA%\CodeBlue\libvlc.log`.
 
-### Build options
-
-| Property | Default | Effect |
-|----------|---------|--------|
-| `CodeBlueLegacyProtocol` | `true` | Includes the **deprecated** legacy text protocol. Build with `-p:CodeBlueLegacyProtocol=false` to leave it out. Only needed for boards still running the original Arduino firmware; this option will be removed in a future release. |
-
 ### Publishing a standalone build
 
 ```powershell

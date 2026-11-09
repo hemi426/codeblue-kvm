@@ -5,7 +5,7 @@ things worth doing, kept in one place so they don't get lost.
 
 ## Before outside testers
 
-- [ ] **CI:** build the firmware (both board presets) and the viewer on every
+- [x] **CI:** build the firmware (both board presets) and the viewer on every
       push, and run the framing tests (`firmware/main/frame.c`'s test, moved
       into the repo, and `tools/cb_test.py selftest`).
 - [ ] **`hardware/BOM.md`:** tested boards (with both USB ports), capture
@@ -34,7 +34,6 @@ things worth doing, kept in one place so they don't get lost.
       command stays in the docs as the fallback.
 - [ ] **USB product ID** from Espressif (free for open-source projects; it
       takes a while, so ask early).
-- [ ] **Legacy protocol:** off by default for one release, then removed.
 - [ ] **Housekeeping:** CHANGELOG, LICENSE and credits check, a CI status
       badge in the README, then make the repository public.
 
@@ -83,3 +82,8 @@ base design and fixing the fit fixes them all.
 - [ ] A second ESP32-S3 board, so one can stay on known-good firmware.
 - [ ] More targets for `hardware/README.md`: a Mac (an Intel Mac's Option-key
       boot picker), more Dells, servers.
+
+## Done
+
+- [x] Removed the legacy text protocol (the Arduino firmware's). The last
+      commit that had it is tagged `legacy-protocol-final`.
