@@ -26,11 +26,17 @@ things worth doing, kept in one place so they don't get lost.
       source, protocol reference, about. Accent colour `#1565C0`, heartbeat
       logo and favicon from `assets/`. The site becomes the docs; the READMEs
       shrink to a short intro that links to it.
+- [ ] **Install from the browser:** an "Install CodeBlue" button on the docs
+      site using ESP Web Tools (the flasher ESPHome uses), with a manifest per
+      board preset. The firmware images have to be published on the Pages
+      site itself, since browsers can't fetch GitHub release downloads from
+      another site. Chrome and Edge only (Web Serial), so the esptool
+      command stays in the docs as the fallback.
 - [ ] **USB product ID** from Espressif (free for open-source projects; it
       takes a while, so ask early).
 - [ ] **Legacy protocol:** off by default for one release, then removed.
-- [ ] **Housekeeping:** CHANGELOG, LICENSE and credits check, then make the
-      repository public.
+- [ ] **Housekeeping:** CHANGELOG, LICENSE and credits check, a CI status
+      badge in the README, then make the repository public.
 
 ## Firmware
 

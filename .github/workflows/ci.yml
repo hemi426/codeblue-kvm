@@ -1,0 +1,89 @@
+# Builds and tests everything on every push, so "works on my machine" gets
+# caught here rather than by someone else.
+name: CI
+
+# Pushes and pull requests that only touch documentation don't need a build.
+# Anything that also changes code still runs everything.
+on:
+  push:
+    paths-ignore: ["**.md", "docs/**", "assets/**"]
+  pull_request:
+    paths-ignore: ["**.md", "docs/**", "assets/**"]
+  workflow_dispatch:
+
+# A newer push to the same branch makes an older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Framing tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: C framing test (firmware/main/frame.c)
+        run: |
+          gcc -std=c11 -Wall -Wextra -Werror -Ifirmware/main \
+              firmware/test/test_frame.c firmware/main/frame.c -o "$RUNNER_TEMP/test_frame"
+          "$RUNNER_TEMP/test_frame"
+
+      - name: Python framing self-test (tools/cb_test.py)
+        run: python3 tools/cb_test.py selftest
+
+  firmware:
+    name: Firmware (${{ matrix.board }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [devkitc-v1.0, devkitc-v1.1]
+    steps:
+      - uses: actions/checkout@v6
+
+      # CI builds with the same ESP-IDF release the bootstrap scripts install.
+      - name: Read the tested ESP-IDF version
+        id: idf
+        run: echo "version=$(tr -d '[:space:]' < firmware/IDF_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with ESP-IDF ${{ steps.idf.outputs.version }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ steps.idf.outputs.version }}
+          target: esp32s3
+          path: firmware
+          command: idf.py -DBOARD=${{ matrix.board }} build
+
+      - name: Keep the binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-${{ matrix.board }}
+          path: |
+            firmware/build/codeblue.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/flasher_args.json
+          if-no-files-found: error
+
+  viewer:
+    # Both configurations, so the legacy protocol's eventual removal is
+    # already known to compile.
+    name: Viewer (legacy protocol ${{ matrix.legacy && 'on' || 'off' }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        legacy: [true, false]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build viewer/CodeBlue.Viewer -c Release -p:CodeBlueLegacyProtocol=${{ matrix.legacy }}

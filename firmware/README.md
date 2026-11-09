@@ -64,6 +64,17 @@ python tools/cb_test.py -h                  # everything else
 LED colours: blue, waiting for a host; green, host connected (the host can
 set any colour).
 
+The framing code (`main/frame.c`) has its own test, which runs on a PC with
+any C compiler. From the repo root:
+
+```sh
+gcc -std=c11 -Wall -Wextra -Werror -Ifirmware/main firmware/test/test_frame.c firmware/main/frame.c -o firmware/build/test_frame
+firmware/build/test_frame
+```
+
+CI (`.github/workflows/ci.yml`) runs it on every push, along with builds for
+both board presets.
+
 The first build downloads the managed components listed in
 `main/idf_component.yml`. See [../docs/BUILDING.md](../docs/BUILDING.md).
 
@@ -74,6 +85,7 @@ The first build downloads the managed components listed in
 | `IDF_VERSION` | The tested ESP-IDF release |
 | `sdkconfig.defaults` | Build defaults (the generated `sdkconfig` is not committed) |
 | `boards/` | Per-board defaults, chosen with `-DBOARD=` |
+| `test/` | Tests that run on a PC |
 | `main/Kconfig.projbuild` | CodeBlue options in `idf.py menuconfig` (board name, LED pin, default brightness, USB IDs, logging) |
 | `main/idf_component.yml` | Managed component dependencies |
 | `dependencies.lock` | Resolved component versions (generated; commit it) |
