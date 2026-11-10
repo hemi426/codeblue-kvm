@@ -18,12 +18,14 @@ things worth doing, kept in one place so they don't get lost.
 
 - [x] **Slim the viewer:** x64 only and an allowlist of the libVLC plugins
       we actually use (338 MB of build output down to about 30).
-- [ ] **Viewer size, optional:** a framework-dependent build (testers install
-      the .NET Desktop Runtime once) would leave out the .NET runtime too.
-- [ ] **Release workflow:** written (`.github/workflows/release.yml`):
-      `firmware-v*` and `viewer-v*` tags build the firmware images (per
-      board preset) or the two viewer zips (small and portable), and
-      assemble a draft release. Tick once the first release has gone through.
+- [x] **Viewer size:** releases offer both a framework-dependent zip (13.7 MB;
+      install the .NET 10 Desktop Runtime once) and a portable one (62.7 MB;
+      includes .NET).
+- [x] **Release workflow** (`.github/workflows/release.yml`): `firmware-v*`
+      and `viewer-v*` tags build the firmware images (per board preset) or
+      the two viewer zips (small, 13.7 MB, and portable, 62.7 MB), and
+      assemble a draft release. First used for firmware 0.1.1 and viewer
+      0.2.0; the released firmware image was flashed and works.
 - [ ] **Docs site** on GitHub Pages (Jekyll, like DarkStage): home, getting
       started, user guide, tested hardware, troubleshooting, building from
       source, protocol reference, about. Accent colour `#1565C0`, heartbeat
@@ -38,8 +40,8 @@ things worth doing, kept in one place so they don't get lost.
 - [ ] **Housekeeping:** CHANGELOG, a copyright line (full name) in the README
       and LICENSE, credits check, a CI status badge in the README, then make
       the repository public.
-- [ ] **CI:** skip builds for changes that only touch
-      `.github/ISSUE_TEMPLATE/` (with the release workflow's `ci.yml` changes).
+- [x] **CI:** skip builds for changes that only touch
+      `.github/ISSUE_TEMPLATE/`, and leave version tags to the release workflow.
 
 ## Firmware
 
