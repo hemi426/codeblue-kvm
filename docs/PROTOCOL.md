@@ -298,9 +298,12 @@ results belong in `hardware/`.
 **VBUS sense (optional hardware).** Telling a sleeping target from an
 unplugged one needs the board to sense the target's 5 V USB power: a
 two-resistor voltage divider from the native port's VBUS (before its diode)
-to a spare GPIO. The ESP32-S3-DevKitC-1 doesn't have this. Firmware that
-supports it sets capability bit 3. Build instructions for the modification
-will come with the hardware documentation.
+to a spare GPIO. The ESP32-S3-DevKitC-1 doesn't have this; see
+[../hardware/VBUS-SENSE.md](../hardware/VBUS-SENSE.md) for the modification.
+Firmware built with a sense pin (`CONFIG_CODEBLUE_VBUS_GPIO`) sets
+capability bit 3 and reports `vbus_present`. The viewer then says "asleep"
+when the bus is suspended with power present, and "unplugged or powered off"
+when there's no power.
 
 ### Safety with the old Arduino firmware
 

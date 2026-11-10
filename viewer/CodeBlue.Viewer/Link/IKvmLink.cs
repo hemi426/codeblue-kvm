@@ -40,6 +40,9 @@ internal interface IKvmLink : IDisposable
     /// <summary>True if the board offers an absolute pointer (MouseMoveAbsolute).</summary>
     bool SupportsAbsolute { get; }
 
+    /// <summary>True if the board senses the target's USB power, so TargetStatus.VbusPresent means something.</summary>
+    bool SupportsVbusSense { get; }
+
     /// <summary>
     /// Whether buttons and the wheel go to the absolute pointer (true) or the
     /// relative mouse (false). Ignored by links without an absolute pointer.

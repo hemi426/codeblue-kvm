@@ -33,6 +33,7 @@ static const char *TAG = "session";
 #define CAP_ABS_MOUSE  (1u << 0)
 #define CAP_REL_MOUSE  (1u << 1)
 #define CAP_PERSISTENT (1u << 2)
+#define CAP_VBUS_SENSE (1u << 3)
 
 enum {
     MSG_HELLO = 0x01,
@@ -83,7 +84,9 @@ static void send_info(void)
 {
     unsigned major = 0, minor = 0, patch = 0;
     sscanf(esp_app_get_description()->version, "%u.%u.%u", &major, &minor, &patch);
-    const uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT;
+    uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT;
+    if (usb_hid_has_vbus_sense())
+        caps |= CAP_VBUS_SENSE;
 
     uint8_t p[FRAME_MAX_PAYLOAD];
     size_t n = 0;

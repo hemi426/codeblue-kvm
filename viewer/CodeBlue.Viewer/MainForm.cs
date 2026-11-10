@@ -348,8 +348,18 @@ internal sealed class MainForm : Form
     private string TargetText()
     {
         if (_link?.TargetStatus is not TargetStatus t) return "";
-        if (!t.Mounted) return " Target: not connected (rebooting, or the board's native USB port isn't plugged in).";
-        if (t.Suspended) return " Target: asleep or disconnected; a keypress may wake it.";
+        // With VBUS sense, no USB power means the cable is out or the target is off.
+        bool unpowered = _link.SupportsVbusSense && !t.VbusPresent;
+        if (!t.Mounted)
+            return unpowered
+                ? " Target: unplugged or powered off (no USB power)."
+                : " Target: not connected (rebooting, or the board's native USB port isn't plugged in).";
+        if (t.Suspended)
+            return unpowered
+                ? " Target: unplugged or powered off (no USB power)."
+                : _link.SupportsVbusSense
+                    ? " Target: asleep; a keypress may wake it."
+                    : " Target: asleep or disconnected; a keypress may wake it.";
         var lit = new List<string>();
         if (t.NumLock) lit.Add("Num");
         if (t.CapsLock) lit.Add("Caps");

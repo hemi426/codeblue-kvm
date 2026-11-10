@@ -35,6 +35,18 @@ menu "CodeBlue"
         hex "USB product ID"
         default 0x4004
 
+    config CODEBLUE_VBUS_GPIO
+        int "VBUS sense GPIO (-1 = none)"
+        range -1 48
+        default -1
+        help
+            Only for boards with the VBUS sense modification
+            (hardware/VBUS-SENSE.md): a 10k/15k divider from the native USB
+            port's 5 V to this GPIO, so the viewer can tell a sleeping
+            target from an unplugged one. GPIO21 suits the DevKitC-1 and its
+            clones. Leave at -1 on an unmodified board: a floating pin would
+            report USB power at random.
+
     config CODEBLUE_UART_LOGS
         bool "Keep logging on the UART after start-up (breaks the protocol)"
         default n

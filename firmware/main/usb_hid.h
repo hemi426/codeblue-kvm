@@ -41,6 +41,9 @@ void usb_hid_poll(void);
 /* TS_* flags. */
 uint8_t usb_hid_status(void);
 
+/* True if the firmware was built with a VBUS sense pin (CONFIG_CODEBLUE_VBUS_GPIO). */
+bool usb_hid_has_vbus_sense(void);
+
 /* The target's Num/Caps/Scroll Lock LEDs (bits 0-2). */
 uint8_t usb_hid_kbd_leds(void);
 

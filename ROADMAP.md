@@ -48,9 +48,14 @@ things worth doing, kept in one place so they don't get lost.
 - [ ] Test waking a sleeping target with a keypress (remote wakeup).
 - [ ] Test a target that puts the mouse in boot protocol.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
-- [ ] VBUS sense: document the two-resistor modification, then report
-      `vbus_present` (capability bit 3) so "asleep" and "unplugged" can be
-      told apart.
+- [ ] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
+      when built with a sense pin, and the viewer tells "asleep" from
+      "unplugged or powered off"; the modification is in
+      `hardware/VBUS-SENSE.md`. Left: test it on a modified board, add photos.
+- [ ] VBUS sense, later: a setting the viewer can save on the board, so the
+      release images work with the mod too; and perhaps esp_tinyusb's
+      self-powered mode (`vbus_monitor_io`), which would turn an unplug into
+      a proper USB disconnect.
 
 ## Viewer
 
@@ -82,11 +87,10 @@ A parametric FreeCAD model, driven by a spreadsheet, so variants share one
 base design and fixing the fit fixes them all.
 
 - [ ] Base case for the ESP32-S3-DevKitC-1, with no headers soldered.
-- [ ] Room for the VBUS sense resistors, which use component leads in the
-      plated header holes (suggested pin GPIO14, next to GND; confirm on the
-      silkscreen): a shallow pocket under the USB end of the header row for
-      the 15 kΩ (GPIO14 to GND), and lid clearance on top for the 10 kΩ, which
-      runs from the IN-OUT pad (top side) to the GPIO14 hole.
+- [ ] Room for the VBUS sense resistors (`hardware/VBUS-SENSE.md`), all on
+      the underside at the USB end: the 10 kΩ from the USB-OTG pad to the
+      GPIO21 hole, the 15 kΩ from GPIO21 to the GND hole beside it. A
+      shallow pocket in the base should do.
 - [ ] Options:
   - [ ] Logo: debossed, embossed, or none (single-colour friendly).
   - [ ] Tactile port markers so HOST and TARGET can be told apart by feel

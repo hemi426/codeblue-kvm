@@ -9,10 +9,9 @@ Planned contents:
 - `case/`: FreeCAD source, STL and STEP exports, and printing notes for a slim,
   header-free ESP32-S3-DevKitC-1 case.
 - `labels/`: label text for the case and the HOST/TARGET cables.
-- **VBUS sense modification** (optional): a two-resistor divider from the
-  native USB port's VBUS to a spare GPIO, so the board can tell a sleeping
-  target from an unplugged one. See "VBUS sense" in
-  [../docs/PROTOCOL.md](../docs/PROTOCOL.md). Instructions to follow.
+- **VBUS sense modification** (optional): two resistors, so the board can
+  tell a sleeping target from an unplugged one. See
+  [VBUS-SENSE.md](VBUS-SENSE.md).
 
 ## Tested targets
 

@@ -56,6 +56,7 @@ internal sealed class BinaryLink : IKvmLink
     public TargetStatus? TargetStatus => _status;
     public int? LedBrightness { get; private set; }
     public bool SupportsAbsolute { get; private set; }
+    public bool SupportsVbusSense { get; private set; }
 
     public bool AbsoluteMouse
     {
@@ -156,9 +157,11 @@ internal sealed class BinaryLink : IKvmLink
                 string board = Encoding.UTF8.GetString(p, 8, p.Length - 8);
                 ProtocolName = $"CodeBlue {p[2]}.{p[3]}.{p[4]} ({board})";
                 LedBrightness = p[7];
-                SupportsAbsolute = (BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5)) & 0x0001) != 0;
+                ushort caps = BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5));
+                SupportsAbsolute = (caps & 0x0001) != 0;
+                SupportsVbusSense = (caps & 0x0008) != 0;
                 Diagnostic?.Invoke($"board: {ProtocolName}, protocol {p[0]}.{p[1]}, " +
-                                   $"capabilities 0x{BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5)):X4}, LED {p[7]}%");
+                                   $"capabilities 0x{caps:X4}, LED {p[7]}%");
                 _gotInfo.Set();
                 break;
 

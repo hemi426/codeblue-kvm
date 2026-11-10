@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -254,6 +255,40 @@ void usb_hid_poll(void)
     xSemaphoreGive(s_lock);
 }
 
+/* VBUS sense (optional): the native port's 5 V through a 10k/15k divider. */
+#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
+#if CONFIG_CODEBLUE_VBUS_GPIO == 19 || CONFIG_CODEBLUE_VBUS_GPIO == 20
+#error "CODEBLUE_VBUS_GPIO: GPIO19 and GPIO20 are the native USB port's data lines."
+#endif
+#if CONFIG_CODEBLUE_VBUS_GPIO == 43 || CONFIG_CODEBLUE_VBUS_GPIO == 44
+#error "CODEBLUE_VBUS_GPIO: GPIO43 and GPIO44 carry the host UART."
+#endif
+#if CONFIG_CODEBLUE_VBUS_GPIO == CONFIG_CODEBLUE_LED_GPIO
+#error "CODEBLUE_VBUS_GPIO is the status LED's pin."
+#endif
+#endif
+
+bool usb_hid_has_vbus_sense(void)
+{
+    return CONFIG_CODEBLUE_VBUS_GPIO >= 0;
+}
+
+static void vbus_sense_init(void)
+{
+#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
+    /* No internal pulls: the divider's 15k holds the pin low when the target
+     * supplies no power, and a pull would shift its levels. */
+    const gpio_config_t io = {
+        .pin_bit_mask = 1ULL << CONFIG_CODEBLUE_VBUS_GPIO,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&io));
+#endif
+}
+
 uint8_t usb_hid_status(void)
 {
     uint8_t f = 0;
@@ -269,6 +304,10 @@ uint8_t usb_hid_status(void)
         if (s_remote_wakeup_enabled)
             f |= TS_REMOTE_WAKEUP;
     }
+#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
+    if (gpio_get_level(CONFIG_CODEBLUE_VBUS_GPIO))
+        f |= TS_VBUS_PRESENT;
+#endif
     return f;
 }
 
@@ -363,6 +402,7 @@ void usb_hid_init(void)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock);
+    vbus_sense_init();
 
     uint8_t mac[6] = { 0 };
     esp_efuse_mac_get_default(mac);

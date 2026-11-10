@@ -150,6 +150,12 @@ For another board revision, add `-DBOARD=devkitc-v1.1` (see
 build defaults, delete `firmware/sdkconfig` first; the build stops with that
 instruction if it notices a mismatch.
 
+For a board with the VBUS sense modification
+([../hardware/VBUS-SENSE.md](../hardware/VBUS-SENSE.md)), run
+`idf.py menuconfig` and set **CodeBlue → VBUS sense GPIO** to the pin you
+wired (21 on the tested clones) before building. The setting lives in
+`firmware/sdkconfig`, so set it again after deleting that file.
+
 The UART port carries the viewer's protocol once the firmware is up, so
 `idf.py monitor` shows only the start-up log. To check a freshly flashed
 board, run `python tools/cb_test.py COM10 info` from the repo root; it
