@@ -20,9 +20,10 @@ things worth doing, kept in one place so they don't get lost.
       we actually use (338 MB of build output down to about 30).
 - [ ] **Viewer size, optional:** a framework-dependent build (testers install
       the .NET Desktop Runtime once) would leave out the .NET runtime too.
-- [ ] **Release workflow:** a `v*` tag builds the merged firmware image (per
-      board preset) and the viewer zip, and attaches them to a GitHub release
-      with flashing instructions and a note about the SmartScreen warning.
+- [ ] **Release workflow:** written (`.github/workflows/release.yml`):
+      `firmware-v*` and `viewer-v*` tags build the firmware images (per
+      board preset) or the two viewer zips (small and portable), and
+      assemble a draft release. Tick once the first release has gone through.
 - [ ] **Docs site** on GitHub Pages (Jekyll, like DarkStage): home, getting
       started, user guide, tested hardware, troubleshooting, building from
       source, protocol reference, about. Accent colour `#1565C0`, heartbeat

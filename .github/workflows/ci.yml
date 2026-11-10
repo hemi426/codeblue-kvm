@@ -2,13 +2,15 @@
 # caught here rather than by someone else.
 name: CI
 
-# Pushes and pull requests that only touch documentation don't need a build.
-# Anything that also changes code still runs everything.
+# Pushes and pull requests that only touch documentation (or issue templates)
+# don't need a build; anything that also changes code still runs everything.
+# Branches only: version tags run the release workflow instead.
 on:
   push:
-    paths-ignore: ["**.md", "docs/**", "assets/**"]
+    branches: ["**"]
+    paths-ignore: ["**.md", "docs/**", "assets/**", ".github/ISSUE_TEMPLATE/**"]
   pull_request:
-    paths-ignore: ["**.md", "docs/**", "assets/**"]
+    paths-ignore: ["**.md", "docs/**", "assets/**", ".github/ISSUE_TEMPLATE/**"]
   workflow_dispatch:
 
 # A newer push to the same branch makes an older run pointless.

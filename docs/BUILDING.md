@@ -154,3 +154,32 @@ The UART port carries the viewer's protocol once the firmware is up, so
 `idf.py monitor` shows only the start-up log. To check a freshly flashed
 board, run `python tools/cb_test.py COM10 info` from the repo root; it
 prints the firmware version and the target's status.
+
+## Releasing
+
+The firmware and the viewer are released separately, each from its own tag.
+Any firmware and viewer that speak the same protocol version work together
+(the handshake checks it).
+
+1. Bump the version: `PROJECT_VER` in `firmware/CMakeLists.txt`, or
+   `<Version>` in `viewer/CodeBlue.Viewer/CodeBlue.Viewer.csproj`. Commit and
+   push.
+2. Tag that commit and push the tag:
+
+   ```sh
+   git tag firmware-v0.1.1        # or: git tag viewer-v0.2.0
+   git push origin firmware-v0.1.1
+   ```
+
+3. The Release workflow (`.github/workflows/release.yml`) checks the tag
+   matches the code, builds everything, and assembles a **draft** release:
+   - firmware: one merged image per board preset, flashed at `0x0`;
+   - viewer: a small zip (needs the .NET 10 Desktop Runtime) and a portable
+     one (includes .NET; unzip and run);
+   - `SHA256SUMS.txt`, and release notes with flashing or install steps.
+4. Review the draft on GitHub (Releases), edit the notes if you like, and
+   click **Publish release**.
+
+If the tag and the code disagree, the workflow stops before building
+anything. Fix the version, then move the tag:
+`git tag -f <tag>` and `git push -f origin <tag>`.

@@ -1,0 +1,182 @@
+# Builds a release from a version tag and assembles it as a draft on GitHub.
+# Nothing is public until you review the draft and click Publish.
+#
+# The firmware and the viewer are released separately (the protocol version
+# check in the handshake keeps any pair compatible):
+#
+#   git tag firmware-v0.1.1   # must match PROJECT_VER in firmware/CMakeLists.txt
+#   git tag viewer-v0.2.0     # must match <Version> in viewer/CodeBlue.Viewer/CodeBlue.Viewer.csproj
+#   git push origin <tag>
+name: Release
+
+on:
+  push:
+    tags: ["firmware-v*", "viewer-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    if: startsWith(github.ref_name, 'firmware-v')
+    name: Firmware (${{ matrix.board }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board: [devkitc-v1.0, devkitc-v1.1]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check the tag matches the code
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME#firmware-v}"
+          code="$(sed -n 's/^set(PROJECT_VER "\(.*\)")/\1/p' firmware/CMakeLists.txt)"
+          if [ "$tag" != "$code" ]; then
+            echo "::error::Tag says $tag, but firmware/CMakeLists.txt says $code."
+            exit 1
+          fi
+          echo "version=$code" >> "$GITHUB_OUTPUT"
+          echo "idf=$(tr -d '[:space:]' < firmware/IDF_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with ESP-IDF ${{ steps.version.outputs.idf }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ steps.version.outputs.idf }}
+          target: esp32s3
+          path: firmware
+          command: idf.py -DBOARD=${{ matrix.board }} build merge-bin
+
+      - name: Name the image
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp firmware/build/merged-binary.bin \
+             "$RUNNER_TEMP/out/codeblue-firmware-${{ steps.version.outputs.version }}-${{ matrix.board }}.bin"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-firmware-${{ matrix.board }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+
+  viewer:
+    if: startsWith(github.ref_name, 'viewer-v')
+    name: Viewer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Check the tag matches the code
+        id: version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME -replace '^viewer-v', ''
+          $code = (Select-String -Path viewer/CodeBlue.Viewer/CodeBlue.Viewer.csproj -Pattern '<Version>(.*)</Version>').Matches[0].Groups[1].Value
+          if ($tag -ne $code) {
+            Write-Output "::error::Tag says $tag, but CodeBlue.Viewer.csproj says $code."
+            exit 1
+          }
+          "version=$code" >> $env:GITHUB_OUTPUT
+
+      - name: Publish and zip
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $out = Join-Path $env:RUNNER_TEMP 'out'
+          New-Item -ItemType Directory -Force $out | Out-Null
+
+          # Small: needs the .NET 10 Desktop Runtime on the machine.
+          dotnet publish viewer/CodeBlue.Viewer -c Release -r win-x64 --no-self-contained -o "$env:RUNNER_TEMP/small"
+          Compress-Archive -Path "$env:RUNNER_TEMP/small/*" -DestinationPath "$out/CodeBlue-viewer-$v-win-x64.zip"
+
+          # Portable: includes .NET; unzip and run, no install or admin rights.
+          dotnet publish viewer/CodeBlue.Viewer -c Release -r win-x64 --self-contained -o "$env:RUNNER_TEMP/portable"
+          Compress-Archive -Path "$env:RUNNER_TEMP/portable/*" -DestinationPath "$out/CodeBlue-viewer-$v-win-x64-portable.zip"
+
+          Get-ChildItem $out | ForEach-Object { "{0}: {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-viewer
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: [firmware, viewer]
+    # One of the two build jobs is always skipped (the tag picks which).
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums and release notes
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+          tag="$GITHUB_REF_NAME"
+          case "$tag" in
+            firmware-v*)
+              v="${tag#firmware-v}"
+              echo "title=CodeBlue firmware $v" >> "$GITHUB_ENV"
+              cat > notes.md <<EOF
+          CodeBlue firmware $v for the ESP32-S3-DevKitC-1 and compatible boards.
+
+          **Which file:** \`devkitc-v1.0\` suits most boards, including the common clones
+          (RGB LED on GPIO48). Use \`devkitc-v1.1\` for boards with the LED on GPIO38. If
+          the LED stays dark but everything else works, you have the other kind.
+
+          **Flashing:** plug in the board's UART port, then (esptool comes with ESP-IDF,
+          or \`pip install esptool\`):
+
+          \`\`\`
+          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v-devkitc-v1.0.bin
+          \`\`\`
+
+          Use your board's port in place of COM10. \`SHA256SUMS.txt\` lists each file's checksum.
+          EOF
+              ;;
+            viewer-v*)
+              v="${tag#viewer-v}"
+              echo "title=CodeBlue viewer $v" >> "$GITHUB_ENV"
+              cat > notes.md <<EOF
+          CodeBlue viewer $v for Windows 10 and 11 (64-bit).
+
+          **Which file:**
+          - \`CodeBlue-viewer-$v-win-x64-portable.zip\`: unzip and run \`CodeBlue.exe\`. Includes
+            everything it needs, so it runs from a USB stick on any PC, with no install
+            and no admin rights.
+          - \`CodeBlue-viewer-$v-win-x64.zip\`: much smaller, but needs the .NET 10 Desktop
+            Runtime, installed once per machine (\`winget install Microsoft.DotNet.DesktopRuntime.10\`).
+
+          The viewer isn't code-signed yet, so Windows SmartScreen may warn on first run:
+          choose **More info**, then **Run anyway**.
+
+          \`SHA256SUMS.txt\` lists each file's checksum.
+          EOF
+              ;;
+          esac
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --draft --title "$title" --notes-file notes.md
+          fi
