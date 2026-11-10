@@ -48,10 +48,13 @@ things worth doing, kept in one place so they don't get lost.
 - [ ] Test waking a sleeping target with a keypress (remote wakeup).
 - [ ] Test a target that puts the mouse in boot protocol.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
-- [ ] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
+- [x] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
       when built with a sense pin, and the viewer tells "asleep" from
       "unplugged or powered off"; the modification is in
-      `hardware/VBUS-SENSE.md`. Left: test it on a modified board, add photos.
+      `hardware/VBUS-SENSE.md`. Released in firmware 0.2.0 and viewer 0.3.0,
+      and tested on a modified N8R2 clone (100k/150k on GPIO21).
+- [ ] VBUS sense photos for `hardware/VBUS-SENSE.md`: a close-up of the
+      USB-OTG pads with the sense pad marked, and the finished mod.
 - [ ] VBUS sense, later: a setting the viewer can save on the board, so the
       release images work with the mod too; and perhaps esp_tinyusb's
       self-powered mode (`vbus_monitor_io`), which would turn an unplug into
