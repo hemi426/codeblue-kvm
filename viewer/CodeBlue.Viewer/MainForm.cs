@@ -15,6 +15,8 @@ internal sealed class MainForm : Form
     private const uint VK_1 = 0x31;
     private const uint VK_S = 0x53;
     private const uint VK_APPS = 0x5D; // Menu key: releases capture
+    private const uint VK_L = 0x4C;
+    private const uint SC_DELETE = 0x53; // Delete and the keypad's Del share this scan code
 
     private const string ReleaseHint =
         "Keyboard and mouse are going to the target. To release: press and release Ctrl+Alt (or the Menu key).";
@@ -798,6 +800,18 @@ internal sealed class MainForm : Form
             return true;
         }
 
+        // Ctrl+Alt+Del and Win+L belong to Windows: it acts on them whatever the
+        // hook returns, but the hook still sees the last key. Forwarding it would
+        // send the chord to the target as well (a BIOS reboots on Ctrl+Alt+Del).
+        // Keep it local and end capture, since Windows is taking over the screen
+        // anyway. The Ctrl+Alt+Del button sends one to the target on purpose.
+        if (!ev.Up && IsWindowsReservedChord(ev))
+        {
+            _releaseChord = false;
+            PostToUi(StopCapture);
+            return true;
+        }
+
         // Viewer hotkeys while captured: Ctrl+Alt+Enter (full screen), Ctrl+Alt+1 (1:1 pixels),
         // Ctrl+Alt+S (snapshot). Their key-down, auto-repeats and key-up all stay away from the target.
         if (ev.VirtualKey is VK_RETURN or VK_1 or VK_S)
@@ -846,6 +860,10 @@ internal sealed class MainForm : Form
     }
 
     private static bool IsCtrlOrAlt(byte usage) => HidUsageMap.IsCtrl(usage) || HidUsageMap.IsAlt(usage);
+
+    private bool IsWindowsReservedChord(KeyEvent ev) =>
+        (ev.ScanCode == SC_DELETE && _held.Any(HidUsageMap.IsCtrl) && _held.Any(HidUsageMap.IsAlt))
+        || (ev.VirtualKey == VK_L && _held.Any(HidUsageMap.IsGui));
 
     protected override void WndProc(ref Message m)
     {

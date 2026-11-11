@@ -93,8 +93,9 @@ board is back.
 | F12 (not captured) | Save a snapshot (F12 goes to the target while captured) |
 
 The viewer's own Ctrl+Alt shortcuts (Enter, 1, S, and Ctrl+Alt alone) never
-reach the target. Ctrl+Alt+Del can't be captured (Windows reserves it), so it
-has its own button.
+reach the target. Ctrl+Alt+Del and Win+L can't be captured (Windows reserves
+them): pressing either one ends capture, and neither reaches the target. Use
+the **Ctrl+Alt+Del** button to send one to the target.
 
 Compact keyboards (many Keychron layouts, for example) have no Menu key, which
 is why Ctrl+Alt is the main release. To use the Menu key anyway, map a spare
@@ -107,8 +108,8 @@ you can't see:
 
 - **You release it:** Ctrl+Alt (or the Menu key), **Disconnect**, or closing
   the viewer.
-- **The viewer loses focus:** a UAC prompt, a notification you click, Win+L,
-  or another program taking the foreground.
+- **The viewer loses focus:** a UAC prompt, a notification you click,
+  Ctrl+Alt+Del or Win+L, or another program taking the foreground.
 - **The board is lost:** it stops answering, or its cable is pulled. The
   viewer reconnects by itself, but waits for you to capture again.
 
