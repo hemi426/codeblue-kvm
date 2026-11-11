@@ -11,7 +11,7 @@ that nobody has confirmed yet. If you try something new, please report it
 |------|-------|--------|
 | **ESP32-S3-DevKitC-1, or a clone** | Must have **two** USB ports, usually labelled USB (or OTG) and UART (or COM). Any flash/PSRAM size works; the firmware fits easily in 4 MB. Leave the IN-OUT and USB-OTG solder pads open. | See the boards below. |
 | **HDMI capture dongle** | Must offer MJPG at 1920x1080 and 30 fps; that's what makes 1080p usable over USB 2. Plain "USB Video" class devices work without drivers. | See the dongles below. |
-| **Two USB cables for the board** | One to your computer (UART port), one to the target (USB port). Must carry data: charge-only cables are a common cause of "nothing happens". Match the ends to your computer and target (USB-C or USB-A). | Any data cable. |
+| **Two USB cables for the board** | One to your computer (UART port), one to the target (USB port). Must carry data: charge-only cables are a common cause of "nothing happens". Match the ends to your computer and target (USB-C or USB-A); adapters and hubs are fine (see below). | Any data cable. |
 | **HDMI cable** | Target to dongle. | Any. |
 | **A Windows PC** | Windows 10 or 11, 64-bit (x64), for the viewer. | Windows 11: tested. |
 
@@ -93,11 +93,21 @@ these all convert *to* HDMI.
 
 | Adapter | For | Status |
 |---------|-----|--------|
-| DisplayPort to HDMI (cable or adapter) | Most business desktops of the last decade, many with DisplayPort only | Untested with CodeBlue |
+| DisplayPort to HDMI (cable or adapter) | Most business desktops of the last decade, many with DisplayPort only. Tested: a 6 ft cable, and the UGREEN 4K DisplayPort to HDMI adapter ([Amazon](https://www.amazon.com/dp/B0FCLXJHTX)). | Tested |
 | USB-C to HDMI | Newer laptops and small desktops. The port must carry video: look for a DisplayPort (D) or Thunderbolt (lightning bolt) symbol. | Untested |
-| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs | Untested |
+| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs and graphics cards. Tested: the Mini-DP to DP adapter that comes with an NVIDIA T400 graphics card, followed by the DP to HDMI adapter above. | Tested (as a chain) |
 | DVI to HDMI (passive cable or adapter) | Older desktops and workstations with DVI-D or DVI-I ports; same digital signal as HDMI, so no conversion needed | Untested |
 | VGA to HDMI, **powered** | Old machines with VGA only. Must be an active converter, since VGA is analogue. | Untested |
 
 The usual cheap DisplayPort-to-HDMI adapters only work in that direction
 (DisplayPort computer to HDMI screen), which is the direction CodeBlue needs.
+
+## USB adapters and hubs
+
+Adapters and hubs on either end work. Tested: the board's UART end through a
+0.5 ft USB-C to USB-A cable ([Amazon](https://www.amazon.com/dp/B08W2129Z8))
+into a USB hub on the viewer PC, and its USB end through a 6 ft USB-C cable and a
+UGREEN USB-A to USB-C adapter (from the
+[4-pack](https://www.amazon.com/dp/B0F9YFLVJN)) into the target's USB-A port.
+Plug the target end straight into the target where you can, though: a BIOS
+usually handles a keyboard on a hub, but not always.
