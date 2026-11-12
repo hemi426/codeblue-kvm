@@ -36,21 +36,26 @@ probably wired like the v1.1: rebuild with `-DBOARD=devkitc-v1.1`.
 | Dongle (as Windows names it) | USB ID | Chip | Notes | Status |
 |------------------------------|--------|------|-------|--------|
 | USB Video | `534D:2109` | MacroSilicon MS2109 (USB 2) | MJPG: 1080p at 30 fps, 720p at 60. YUY2: 1080p at 5 fps, 720p at 10, 640x480 at 30. | Tested |
-| USB3.0 capture, sold as USB 3.0 ([Amazon](https://www.amazon.com/dp/B091NWB4RJ)) | `345F:2109` | MS2109 family (USB 2), despite the label | MJPG: 1080p at 60 fps, pixel-perfect at 1:1. YUY2: 1080p at 10 fps, 720p at 25, 640x480 at 60. The better of the two. | Tested |
+| USB3.0 capture, sold as USB 3.0 ([Amazon](https://www.amazon.com/dp/B091NWB4RJ)) | `345F:2109` | MS2109 family (USB 2), despite the label | MJPG: 1080p at 60 fps, pixel-perfect at 1:1. YUY2: 1080p at 10 fps, 720p at 25, 640x480 at 60. | Tested |
+| "USB3.0 UHD" on a USB 3 port, "USB2.0 HD" on a USB 2 port ([Amazon](https://www.amazon.com/dp/B0BJ6XLK45)) | `345F:2130` | MacroSilicon MS2130 (real USB 3) | Changes personality with the port. On **USB 2**: MJPG only, 1080p at 50 fps, 1280x1024 and smaller at 60; the sharpest picture of the three. On **USB 3**: YUY2 only, every size at 60 fps, but text blurs in the viewer (see below). **Plug it into a USB 2 port**, or through a USB 2 hub or cable. | Tested |
 
 **Use MJPG, and when in doubt, set FPS to Auto.** At 1080p, USB 2 dongles
 only reach full frame rate with MJPG, and asking for a frame rate a format
-doesn't offer (YUY2 at 1080p and 30 fps, say) gives a black screen.
-YUY2 also shows text artifacts in the viewer, even when the frame rate is
-fine: libVLC 3 hands packed YUY2 straight to its Direct3D 11 output, which
-distorts thin strokes. Snapshots are unaffected, since they skip the display
-path, and there is no workaround short of libVLC 4.
+doesn't offer (YUY2 at 1080p and 30 fps, say, or 60 fps on the MS2130's
+50 fps 1080p) gives a black screen. YUY2 also shows text artifacts in the
+viewer, even when the frame rate is fine: libVLC 3 hands packed YUY2 straight
+to its Direct3D 11 output, whose shader smears thin strokes. Snapshots are
+unaffected, since they skip the display path. Its output options (the
+sampler, the GPU's video processor) don't help either; the fix is libVLC 4,
+or the viewer drawing frames itself.
 
 ### Checking a dongle
 
 Cheap dongles are often not what their listings claim, so before relying on
 one (or reporting it), check three things: its USB ID, its real USB speed,
-and the modes it offers.
+and the modes it offers. Check on the kind of port you'll actually use: some
+dongles (the MS2130 above) offer completely different modes on USB 2 and
+USB 3 ports, and even change their name.
 
 **The easy way: USB Tree View.** Uwe Sieber's free USB Device Tree Viewer
 (`winget install UweSieber.UsbTreeView`, or from his website) shows all
@@ -111,3 +116,9 @@ UGREEN USB-A to USB-C adapter (from the
 [4-pack](https://www.amazon.com/dp/B0F9YFLVJN)) into the target's USB-A port.
 Plug the target end straight into the target where you can, though: a BIOS
 usually handles a keyboard on a hub, but not always.
+
+The capture dongle works through an extension too. Tested: StarTech's 6 in
+USB 3.0 extension, USB3EXT6INBK ([Amazon](https://www.amazon.com/dp/B00S2N2Q4U)),
+which passes full SuperSpeed. That's exactly what puts the MS2130 into its
+YUY2-only mode, so use it with the MS2109 dongles, or plug the MS2130 into a
+USB 2 port.
