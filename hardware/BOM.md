@@ -25,7 +25,7 @@ your computer.
 |-------|-------|--------|
 | AITRIP ESP32-S3-DevKitC-1 clone, N8R2 ([Amazon](https://www.amazon.com/dp/B0D62QGMWR)) | 8 MB flash, 2 MB PSRAM. RGB LED on GPIO48: the default build. | Tested |
 | DORHEA ESP32-S3-DevKitC-1 clone, N8R2 ([Amazon](https://www.amazon.com/dp/B0C9H7Y66W)) | Same layout as the AITRIP. RGB LED on GPIO48: the default build. | Tested |
-| DORHEA ESP32-S3-DevKitC-1 clone, N16R8 (same listing) | 16 MB flash, 8 MB octal PSRAM (CodeBlue uses neither the extra flash nor the PSRAM). Expected to need no changes. | Not yet tested |
+| DORHEA ESP32-S3-DevKitC-1 clone, N16R8 (same listing) | 16 MB flash, 8 MB octal PSRAM (CodeBlue uses neither the extra flash nor the PSRAM). An ESP32-S3R8 with 3.3 V PSRAM, so GPIO47 and 48 stay at 3.3 V. RGB LED on GPIO48: the default build. | Tested |
 | Espressif ESP32-S3-DevKitC-1 v1.1 | RGB LED on GPIO38: build with `-DBOARD=devkitc-v1.1`. | Untested |
 
 If a board's LED stays dark after flashing but everything else works, it's
@@ -37,7 +37,7 @@ probably wired like the v1.1: rebuild with `-DBOARD=devkitc-v1.1`.
 |------------------------------|--------|------|-------|--------|
 | USB Video | `534D:2109` | MacroSilicon MS2109 (USB 2) | MJPG: 1080p at 30 fps, 720p at 60. YUY2: 1080p at 5 fps, 720p at 10, 640x480 at 30. | Tested |
 | USB3.0 capture, sold as USB 3.0 ([Amazon](https://www.amazon.com/dp/B091NWB4RJ)) | `345F:2109` | MS2109 family (USB 2), despite the label | MJPG: 1080p at 60 fps, pixel-perfect at 1:1. YUY2: 1080p at 10 fps, 720p at 25, 640x480 at 60. | Tested |
-| "USB3.0 UHD" on a USB 3 port, "USB2.0 HD" on a USB 2 port ([Amazon](https://www.amazon.com/dp/B0BJ6XLK45)) | `345F:2130` | MacroSilicon MS2130 (real USB 3) | Changes personality with the port. On **USB 2**: MJPG only, 1080p at 50 fps, 1280x1024 and smaller at 60; the sharpest picture of the three. On **USB 3**: YUY2 only, every size at 60 fps, but text blurs in the viewer (see below). **Plug it into a USB 2 port**, or through a USB 2 hub or cable. | Tested |
+| "USB3.0 UHD" on a USB 3 port, "USB2.0 HD" on a USB 2 port ([Amazon](https://www.amazon.com/dp/B0BJ6XLK45)) | `345F:2130` | MacroSilicon MS2130 (real USB 3) | Changes personality with the port. On **USB 2**: MJPG only, 1080p at 50 fps, 1280x1024 and smaller at 60; the sharpest picture and the best colour of the three. On **USB 3**: YUY2 only, every size at 60 fps, but text blurs in the viewer (see below). **Plug it into a USB 2 port**, or through a USB 2 hub or cable. | Tested |
 
 **Use MJPG, and when in doubt, set FPS to Auto.** At 1080p, USB 2 dongles
 only reach full frame rate with MJPG, and asking for a frame rate a format

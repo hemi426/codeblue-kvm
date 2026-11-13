@@ -114,10 +114,12 @@ base design and fixing the fit fixes them all.
 - [ ] Video adapters for targets without HDMI: USB-C to HDMI (the port needs
       DisplayPort Alt Mode or Thunderbolt), DisplayPort to HDMI, Mini
       DisplayPort to HDMI, and a powered VGA to HDMI converter.
-- [ ] A second ESP32-S3 board, so one can stay on known-good firmware
-      (ordered: N16R8 DevKitC-1 clones, from the same vendor as the N8R2).
-- [ ] BOM: mark the DORHEA N16R8 tested once one has been flashed, and add
-      a genuine MS2130 (USB 3) dongle once one has been checked.
+- [x] A second ESP32-S3 board, so one can stay on known-good firmware: ten
+      DORHEA N16R8 clones arrived, and the first runs the release image fine.
+- [x] BOM: the DORHEA N16R8 marked tested, and a genuine MS2130 dongle added
+      (MJPG only on USB 2, YUY2 only on USB 3).
+- [ ] BOM: a USB 2.0 extension (C2G 52119, ordered) to put the MS2130 in
+      its MJPG mode on a USB 3 port, once checked.
 - [ ] More targets for `hardware/README.md`: a Mac (an Intel Mac's Option-key
       boot picker), more Dells, servers.
 
