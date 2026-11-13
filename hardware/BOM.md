@@ -28,6 +28,11 @@ your computer.
 | DORHEA ESP32-S3-DevKitC-1 clone, N16R8 (same listing) | 16 MB flash, 8 MB octal PSRAM (CodeBlue uses neither the extra flash nor the PSRAM). An ESP32-S3R8 with 3.3 V PSRAM, so GPIO47 and 48 stay at 3.3 V. RGB LED on GPIO48: the default build. | Tested |
 | Espressif ESP32-S3-DevKitC-1 v1.1 | RGB LED on GPIO38: build with `-DBOARD=devkitc-v1.1`. | Untested |
 
+The clones tested so far all behave identically, apart from the LED: its
+brightness varies from batch to batch (the N16R8's is noticeably dimmer than
+the N8R2's), since makers use different LED parts. Set **LED %** in the viewer
+to taste while connected; each board saves its own setting.
+
 If a board's LED stays dark after flashing but everything else works, it's
 probably wired like the v1.1: rebuild with `-DBOARD=devkitc-v1.1`.
 
