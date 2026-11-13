@@ -105,7 +105,7 @@ these all convert *to* HDMI.
 |---------|-----|--------|
 | DisplayPort to HDMI (cable or adapter) | Most business desktops of the last decade, many with DisplayPort only. Tested: a 6 ft cable, and the UGREEN 4K DisplayPort to HDMI adapter ([Amazon](https://www.amazon.com/dp/B0FCLXJHTX)). | Tested |
 | USB-C to HDMI | Newer laptops and small desktops. The port must carry video: look for a DisplayPort (D) or Thunderbolt (lightning bolt) symbol. | Untested |
-| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs and graphics cards. Tested: the Mini-DP to DP adapter that comes with an NVIDIA T400 graphics card, followed by the DP to HDMI adapter above. | Tested (as a chain) |
+| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs and graphics cards. Tested on an NVIDIA T400: a 6 ft Mini DisplayPort to HDMI cable ([Amazon](https://www.amazon.com/dp/B0134V3KIA)), the simplest option, and also the card's own Mini-DP to DP adapter followed by the DP to HDMI adapter above. | Tested |
 | DVI to HDMI (passive cable or adapter) | Older desktops and workstations with DVI-D or DVI-I ports; same digital signal as HDMI, so no conversion needed | Untested |
 | VGA to HDMI, **powered** | Old machines with VGA only. Must be an active converter, since VGA is analogue. | Untested |
 
