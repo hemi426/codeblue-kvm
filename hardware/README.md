@@ -12,6 +12,9 @@ Planned contents:
 - **VBUS sense modification** (optional): two resistors, so the board can
   tell a sleeping target from an unplugged one. See
   [VBUS-SENSE.md](VBUS-SENSE.md).
+- **Experiments** (unsupported, at your own risk): see
+  [experiments/](experiments/README.md), such as patching an MS2130 stick for
+  MJPG on USB 3.
 
 ## Tested targets
 

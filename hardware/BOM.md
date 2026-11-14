@@ -42,7 +42,14 @@ probably wired like the v1.1: rebuild with `-DBOARD=devkitc-v1.1`.
 |------------------------------|--------|------|-------|--------|
 | USB Video | `534D:2109` | MacroSilicon MS2109 (USB 2) | MJPG: 1080p at 30 fps, 720p at 60. YUY2: 1080p at 5 fps, 720p at 10, 640x480 at 30. | Tested |
 | USB3.0 capture, sold as USB 3.0 ([Amazon](https://www.amazon.com/dp/B091NWB4RJ)) | `345F:2109` | MS2109 family (USB 2), despite the label | MJPG: 1080p at 60 fps, pixel-perfect at 1:1. YUY2: 1080p at 10 fps, 720p at 25, 640x480 at 60. | Tested |
-| "USB3.0 UHD" on a USB 3 port, "USB2.0 HD" on a USB 2 port ([Amazon](https://www.amazon.com/dp/B0BJ6XLK45)) | `345F:2130` | MacroSilicon MS2130 (real USB 3) | Changes personality with the port. On **USB 2**: MJPG only, 1080p at 50 fps, 1280x1024 and smaller at 60; the sharpest picture and the best colour of the three. On **USB 3**: YUY2 only, every size at 60 fps, but text blurs in the viewer (see below). **Plug it into a USB 2 port**, or through a USB 2 hub or cable. | Tested |
+| "USB3.0 UHD" on a USB 3 port, "USB2.0 HD" on a USB 2 port ([Amazon](https://www.amazon.com/dp/B0BJ6XLK45)) | `345F:2130` | MacroSilicon MS2130 (real USB 3) | Changes personality with the port. On **USB 2**: MJPG only, 1080p at 50 fps, 1280x1024 and smaller at 60; the sharpest picture and the best colour of these. On **USB 3**: YUY2 only, every size at 60 fps, but text blurs in the viewer (see below). **Plug it into a USB 2 port**, or through a USB 2.0 extension, which forces USB 2 even on a USB 3 port (tested: C2G 52119, 6 in). Or patch its firmware for MJPG at 1080p60 on USB 3: [experimental](experiments/ms2130-mjpg-usb3/README.md). | Tested |
+| UGREEN 15389, sold as a 4K HDMI capture card ([Amazon](https://www.amazon.com/dp/B0DT9DY312)) | `2B89:5389` (UGREEN's own ID) | MacroSilicon MS2130 (real USB 3) | On **USB 3**: MJPG and YUY2 at every size, 1080p at 60 fps, up to 2560x1440 at 30. On USB 2: MJPG only, up to 1080p at 30 (per UGREEN). One piece with its cable, and works in any port. But it shows a UGREEN logo for about 10 seconds whenever capture starts, which can hide a target's boot prompts, and its colours are a little flatter than the MS2130 stick's. | Tested |
+
+**Which one?** For a crash cart, the MS2130 stick on a USB 2.0 extension:
+no startup logo, the best picture, and $12 or so in all. For a desk, the
+UGREEN is the tidier choice, if the logo doesn't bother you. If you're
+comfortable flashing a dongle, the stick patched for MJPG on USB 3 beats both
+([experimental](experiments/ms2130-mjpg-usb3/README.md)).
 
 **Use MJPG, and when in doubt, set FPS to Auto.** At 1080p, USB 2 dongles
 only reach full frame rate with MJPG, and asking for a frame rate a format
@@ -69,7 +76,9 @@ three. Plug the dongle in, find it in the tree, and read:
 - **Vendor ID and Product ID** at the top: the USB ID, which identifies the
   hardware even when listings change. MacroSilicon's chips are the usual ones
   inside cheap dongles: a product ID of `2109` means the MS2109 (USB 2),
-  while the MS2130 (`345F:2130`) supports real USB 3.
+  while the MS2130 (`345F:2130`) supports real USB 3. Branded dongles may use
+  their maker's own ID instead (UGREEN's MS2130 card is `2B89:5389`); the
+  Manufacturer string ("MACROSILICON") still gives the chip away.
 - **Device maximum Speed:** "SuperSpeed" means the dongle can do USB 3;
   "High-Speed" means it's a USB 2 device, whatever the box says. (Device
   Connection Speed is what it got from this port; plug a USB 3 dongle into a

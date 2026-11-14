@@ -31,6 +31,12 @@ things worth doing, kept in one place so they don't get lost.
       source, protocol reference, about. Accent colour `#1565C0`, heartbeat
       logo and favicon from `assets/`. The site becomes the docs; the READMEs
       shrink to a short intro that links to it.
+- [ ] **Experiments page** on the docs site, clearly marked "at your own
+      risk" (in the repo for now: `hardware/experiments/`).
+  - [x] MJPG at 1080p60 on the MS2130 stick's USB 3 mode: patched, flashed
+        and verified (`hardware/experiments/ms2130-mjpg-usb3/`).
+  - [ ] Remove the UGREEN card's startup logo (not yet located in its image).
+  - [ ] Maybe: 1080p60 on the stick's USB 2 mode (bandwidth may not allow it).
 - [ ] **Install from the browser:** an "Install CodeBlue" button on the docs
       site using ESP Web Tools (the flasher ESPHome uses), with a manifest per
       board preset. The firmware images have to be published on the Pages
@@ -118,8 +124,8 @@ base design and fixing the fit fixes them all.
       DORHEA N16R8 clones arrived, and the first runs the release image fine.
 - [x] BOM: the DORHEA N16R8 marked tested, and a genuine MS2130 dongle added
       (MJPG only on USB 2, YUY2 only on USB 3).
-- [ ] BOM: a USB 2.0 extension (C2G 52119, ordered) to put the MS2130 in
-      its MJPG mode on a USB 3 port, once checked.
+- [x] BOM: a USB 2.0 extension (C2G 52119) puts the MS2130 in its MJPG mode
+      on a USB 3 port.
 - [ ] More targets for `hardware/README.md`: a Mac (an Intel Mac's Option-key
       boot picker), more Dells, servers.
 
