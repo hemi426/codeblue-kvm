@@ -141,7 +141,7 @@ jobs:
           case "$tag" in
             firmware-v*)
               v="${tag#firmware-v}"
-              echo "title=CodeBlue firmware $v" >> "$GITHUB_ENV"
+              echo "title=CodeBlue Firmware $v" >> "$GITHUB_ENV"
               cat > notes.md <<EOF
           CodeBlue firmware $v for the ESP32-S3-DevKitC-1 and compatible boards.
 
@@ -162,7 +162,7 @@ jobs:
               ;;
             viewer-v*)
               v="${tag#viewer-v}"
-              echo "title=CodeBlue viewer $v" >> "$GITHUB_ENV"
+              echo "title=CodeBlue Viewer $v" >> "$GITHUB_ENV"
               cat > notes.md <<EOF
           CodeBlue viewer $v for Windows 10 and 11 (64-bit).
 

@@ -113,7 +113,7 @@ these all convert *to* HDMI.
 | Adapter | For | Status |
 |---------|-----|--------|
 | DisplayPort to HDMI (cable or adapter) | Most business desktops of the last decade, many with DisplayPort only. Tested: a 6 ft cable, and the UGREEN 4K DisplayPort to HDMI adapter ([Amazon](https://www.amazon.com/dp/B0FCLXJHTX)). | Tested |
-| USB-C to HDMI | Newer laptops and small desktops. The port must carry video: look for a DisplayPort (D) or Thunderbolt (lightning bolt) symbol. | Untested |
+| USB-C to HDMI | Newer laptops and small desktops. The port must carry video: look for a DisplayPort (D) or Thunderbolt (lightning bolt) symbol. Tested on a Dell Precision 7680 (Thunderbolt 4): the Highwings adapter ([Amazon](https://www.amazon.com/dp/B08GC1K9TF)), the Anker adapter ([Amazon](https://www.amazon.com/dp/B07THJGZ9Z)), and the Anker 3 ft cable ([Amazon](https://www.amazon.com/dp/B0DM9BLJND)), which plugs straight into the dongle. | Tested |
 | Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs and graphics cards. Tested on an NVIDIA T400: a 6 ft Mini DisplayPort to HDMI cable ([Amazon](https://www.amazon.com/dp/B0134V3KIA)), the simplest option, and also the card's own Mini-DP to DP adapter followed by the DP to HDMI adapter above. | Tested |
 | DVI to HDMI (passive cable or adapter) | Older desktops and workstations with DVI-D or DVI-I ports; same digital signal as HDMI, so no conversion needed | Untested |
 | VGA to HDMI, **powered** | Old machines with VGA only. Must be an active converter, since VGA is analogue. | Untested |

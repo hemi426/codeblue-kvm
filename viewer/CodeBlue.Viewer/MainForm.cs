@@ -89,7 +89,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "CodeBlue";
+        Text = $"CodeBlue Viewer {ViewerVersion}";
         using (var iconStream = typeof(MainForm).Assembly.GetManifestResourceStream("CodeBlue.ico"))
             if (iconStream is not null) Icon = new Icon(iconStream);
         Font = new Font("Segoe UI", 10f);
@@ -379,6 +379,10 @@ internal sealed class MainForm : Form
         ApplyMouseMode(); // Auto follows the target's boot-mouse request
         UpdateUi();
     }
+
+    // <Version> from the .csproj. The SDK appends "+<commit>" to the
+    // informational version; the title shows only the release number.
+    private static string ViewerVersion => Application.ProductVersion.Split('+')[0];
 
     private void SetStatus(string text) => _status.Text = text;
 
@@ -1002,7 +1006,7 @@ internal sealed class MainForm : Form
         {
             Directory.CreateDirectory(Path.GetDirectoryName(VlcLogPath)!);
             _vlcLog = new StreamWriter(VlcLogPath, append: false) { AutoFlush = true };
-            WriteLog($"codeblue: viewer started, libVLC {_libVlc.Version}");
+            WriteLog($"codeblue: viewer {ViewerVersion} started, libVLC {_libVlc.Version}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
