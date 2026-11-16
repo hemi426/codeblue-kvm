@@ -68,6 +68,21 @@ The divider turns 5.12 V into 3.07 V at the pin (3.15 V at USB's maximum
 read a high. With nothing plugged into the target port, the 15 kΩ holds the
 pin at 0 V.
 
+### What about plug-in spikes?
+
+Plugging in a USB cable can make VBUS ring briefly above 5 V (the cable's
+inductance against the board's capacitors), for microseconds. Even a
+pessimistic 10 V spike can't hurt the pin: the GPIO's protection diodes clamp
+it just above the chip's supply, and the top resistor limits the current
+through them to about 0.6 mA with 10 kΩ, or 60 µA with 100 kΩ. Those diodes
+handle far more than that. What would be dangerous is wiring VBUS to a pin
+without the series resistor.
+
+**Optional:** a 100 nF ceramic capacitor from GPIO21 to GND (alongside the
+bottom resistor) turns the divider into a low-pass filter that swallows the
+spikes entirely. It slows the signal by a few milliseconds at most (about
+6 ms with 100k/150k), which is instant as far as the viewer is concerned.
+
 If you use another GPIO, avoid 0, 3, 45 and 46 (boot mode), 19 and 20 (USB),
 43 and 44 (the UART), the LED pin (48 or 38), 33 to 37 on boards with octal
 PSRAM (N16R8 and other "R8" boards), and 47 (1.8 V on some modules).
