@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        board: [devkitc-v1.0, devkitc-v1.1]
+        board: [esp32-s3-devkitc-1-v1.0, esp32-s3-devkitc-1-v1.1]
     steps:
       - uses: actions/checkout@v6
 
@@ -145,15 +145,16 @@ jobs:
               cat > notes.md <<EOF
           CodeBlue firmware $v for the ESP32-S3-DevKitC-1 and compatible boards.
 
-          **Which file:** \`devkitc-v1.0\` suits most boards, including the common clones
-          (RGB LED on GPIO48). Use \`devkitc-v1.1\` for boards with the LED on GPIO38. If
-          the LED stays dark but everything else works, you have the other kind.
+          **Which file:** \`esp32-s3-devkitc-1-v1.0\` suits most boards, including the
+          common clones (RGB LED on GPIO48). Use \`esp32-s3-devkitc-1-v1.1\` for boards
+          with the LED on GPIO38. If the LED stays dark but everything else works, you
+          have the other kind.
 
           **Flashing:** plug in the board's UART port, then (esptool comes with ESP-IDF,
           or \`pip install esptool\`):
 
           \`\`\`
-          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v-devkitc-v1.0.bin
+          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v-esp32-s3-devkitc-1-v1.0.bin
           \`\`\`
 
           Use your board's port in place of COM10. \`SHA256SUMS.txt\` lists each file's checksum.

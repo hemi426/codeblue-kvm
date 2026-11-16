@@ -145,7 +145,7 @@ idf.py build
 idf.py -p COM10 flash                       # use your board's UART port
 ```
 
-For another board revision, add `-DBOARD=devkitc-v1.1` (see
+For another board revision, add `-DBOARD=esp32-s3-devkitc-1-v1.1` (see
 `firmware/boards/`). When switching boards, or after pulling changes to the
 build defaults, delete `firmware/sdkconfig` first; the build stops with that
 instruction if it notices a mismatch.

@@ -29,12 +29,12 @@ idf.py -p COM10 flash              # the board's UART port
 
 ### Boards
 
-The build defaults to `devkitc-v1.0`, which suits the original
+The build defaults to `esp32-s3-devkitc-1-v1.0`, which suits the original
 ESP32-S3-DevKitC-1 and most clones (RGB LED on GPIO48). For a v1.1 board
 (LED on GPIO38):
 
 ```sh
-idf.py -DBOARD=devkitc-v1.1 build
+idf.py -DBOARD=esp32-s3-devkitc-1-v1.1 build
 ```
 
 Board settings only take effect when `sdkconfig` is created, so when

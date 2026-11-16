@@ -1,12 +1,12 @@
 # CodeBlue firmware (ESP-IDF). Build from this folder after activating ESP-IDF:
 #   . ../scripts/activate-idf.ps1   (or .sh)
-#   idf.py build                    (or: idf.py -DBOARD=devkitc-v1.1 build)
+#   idf.py build                    (or: idf.py -DBOARD=esp32-s3-devkitc-1-v1.1 build)
 cmake_minimum_required(VERSION 3.16)
 
 set(PROJECT_VER "0.2.0")
 
 # Board preset: boards/<BOARD>.defaults is layered over sdkconfig.defaults.
-set(BOARD "devkitc-v1.0" CACHE STRING "Board preset, from boards/")
+set(BOARD "esp32-s3-devkitc-1-v1.0" CACHE STRING "Board preset, from boards/")
 set(_board_file "${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}.defaults")
 if(NOT EXISTS "${_board_file}")
     file(GLOB _boards RELATIVE "${CMAKE_CURRENT_LIST_DIR}/boards" "${CMAKE_CURRENT_LIST_DIR}/boards/*.defaults")
