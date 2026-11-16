@@ -903,15 +903,34 @@ internal sealed class MainForm : Form
         if (e.WheelDelta != 0) link.MouseWheel(e.WheelDelta / 120);
     }
 
-    private void SendCtrlAltDel()
+    private bool _sendingCad;
+
+    // The board sends the keyboard's current state when the target polls, so
+    // changes closer together than a poll merge, and a press released before
+    // the next poll is never seen. Space the steps out and hold the chord.
+    private async void SendCtrlAltDel()
     {
-        if (_link is null) return;
-        _link.KeyDown(HidUsageMap.LeftCtrl);
-        _link.KeyDown(HidUsageMap.LeftAlt);
-        _link.KeyDown(HidUsageMap.Delete);
-        _link.KeyUp(HidUsageMap.Delete);
-        _link.KeyUp(HidUsageMap.LeftAlt);
-        _link.KeyUp(HidUsageMap.LeftCtrl);
+        var link = _link;
+        if (link is null || _sendingCad) return;
+        _sendingCad = true;
+        try
+        {
+            link.KeyDown(HidUsageMap.LeftCtrl);
+            await Task.Delay(30);
+            link.KeyDown(HidUsageMap.LeftAlt);
+            await Task.Delay(30);
+            link.KeyDown(HidUsageMap.Delete);
+            await Task.Delay(100);
+            link.KeyUp(HidUsageMap.Delete);
+            await Task.Delay(30);
+            link.KeyUp(HidUsageMap.LeftAlt);
+            await Task.Delay(30);
+            link.KeyUp(HidUsageMap.LeftCtrl);
+        }
+        finally
+        {
+            _sendingCad = false;
+        }
     }
 
     // ---------------------------------------------------------------- View
