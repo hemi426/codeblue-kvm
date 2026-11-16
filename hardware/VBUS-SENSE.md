@@ -11,11 +11,20 @@ when fully off or hibernating, and some keep it on.
 
 ## What you need
 
-- A **10 kΩ** and a **15 kΩ** resistor (through-hole, 1/4 W or smaller; 5%
-  is fine). **100 kΩ and 150 kΩ** work too: only the ratio matters, and on
-  the tested clone the pad's leakage put just 26 mV across the 150 kΩ with
-  no target (the chip reads a low below about 0.8 V). Use the 10x values in
-  place of 10 kΩ and 15 kΩ below.
+- **Two resistors** in a 2:3 ratio (through-hole, 1/8 or 1/4 W; 5% is fine).
+  Only the ratio sets the voltage, so any of these pairs works:
+
+  | Pair | Strengths | Trade-offs |
+  |------|-----------|------------|
+  | **10 kΩ / 15 kΩ** | Stiffest signal: swamps leakage on the sense pad and ignores noise | About 0.6 mA through the pin's protection in a plug-in spike; up to about 0.4 mA can back-feed an unpowered board; draws 0.2 mA from the target |
+  | **47 kΩ / 68 kΩ** | A good middle: about 3.03 V at the pin, both currents roughly halved | None worth worrying about |
+  | **100 kΩ / 150 kΩ** | Gentlest on the pin and on an unpowered board (about a tenth of the 10k currents) | Leakage on the sense pad shows up at the pin: 26 mV on the tested clone, far below the 0.8 V where it would read high, but less margin on a leakier board or a hot day; more prone to picking up noise |
+
+  For belt and braces, use **100 kΩ / 150 kΩ plus the optional 100 nF
+  capacitor** (see below): the capacitor takes care of noise and spikes.
+  Whichever you choose, the check at the end of "Wiring" confirms it on your board.
+  The wiring below says 10 kΩ and 15 kΩ; substitute your pair.
+- Optionally, a **100 nF** ceramic capacitor.
 - A soldering iron and a multimeter.
 
 ## Where it goes
@@ -41,8 +50,8 @@ to USB, target on) and measure each USB-OTG pad to GND:
 | Target-side pad (the sense point) | about 5 V | floating (a meter may show 1 to 2 V) |
 | Board-side pad | about 4.6 to 4.8 V | about 4.6 V (fed from the UART port) |
 
-On the tested clones, the sense point is the USB-OTG pad nearer the USB
-ports.
+On the tested clones (an N8R2 and an N16R8), the sense point is the USB-OTG
+pad nearer the USB ports.
 
 **Leave the USB-OTG pads unbridged.** Bridging them connects the target's
 5 V straight to your computer's.
@@ -63,19 +72,35 @@ sense pad ──[10 kΩ]──┬── GPIO21
 - The 10 kΩ runs from the sense pad to the GPIO21 hole; the 15 kΩ from the
   GPIO21 hole to a neighbouring GND hole. Everything stays on the underside.
 
+![The finished mod on the underside of an N16R8 board](images/vbus-sense.jpg)
+
+*The finished mod on a DORHEA N16R8, underside up, USB ports to the right,
+with 100k/150k. The 100 kΩ (in green sleeving) runs from the sense pad down
+to the GPIO21 hole. The 150 kΩ lies flat from GPIO21 to the GND hole three
+holes along; its body crosses the GPIO20 and GPIO19 holes, but only its leads
+touch anything. Both leads share the GPIO21 hole, soldered from the
+underside.*
+
 The divider turns 5.12 V into 3.07 V at the pin (3.15 V at USB's maximum
 5.25 V), safely under the chip's 3.3 V, and well above the 2.5 V it needs to
 read a high. With nothing plugged into the target port, the 15 kΩ holds the
 pin at 0 V.
 
+**Check it before building the firmware.** With your computer on the UART
+port, measure GPIO21 to GND: it should read well under 0.1 V with the target
+unplugged (about 20 mV on both tested boards with 100k/150k), and about 3 V
+with the target plugged in and on (3.05 V on both).
+
 ### What about plug-in spikes?
 
 Plugging in a USB cable can make VBUS ring briefly above 5 V (the cable's
 inductance against the board's capacitors), for microseconds. Even a
-pessimistic 10 V spike can't hurt the pin: the GPIO's protection diodes clamp
-it just above the chip's supply, and the top resistor limits the current
-through them to about 0.6 mA with 10 kΩ, or 60 µA with 100 kΩ. Those diodes
-handle far more than that. What would be dangerous is wiring VBUS to a pin
+pessimistic 10 V spike can't hurt the pin: the GPIO's protection structures
+clamp it just above the chip's supply, and the top resistor limits the
+current through them to about 0.6 mA with 10 kΩ, or 60 µA with 100 kΩ.
+Microcontroller datasheets typically allow a few milliamps of injected
+current; Espressif doesn't publish a figure for the S3 that we know of, but
+these currents are far below that. What would be dangerous is wiring VBUS to a pin
 without the series resistor.
 
 **Optional:** a 100 nF ceramic capacitor from GPIO21 to GND (alongside the

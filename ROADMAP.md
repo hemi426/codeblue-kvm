@@ -59,8 +59,9 @@ things worth doing, kept in one place so they don't get lost.
       "unplugged or powered off"; the modification is in
       `hardware/VBUS-SENSE.md`. Released in firmware 0.2.0 and viewer 0.3.0,
       and tested on a modified N8R2 clone (100k/150k on GPIO21).
-- [ ] VBUS sense photos for `hardware/VBUS-SENSE.md`: a close-up of the
-      USB-OTG pads with the sense pad marked, and the finished mod.
+- [x] VBUS sense photo in `hardware/VBUS-SENSE.md`: the finished mod on an
+      N16R8, with the sense pad marked (labels drawn by
+      `tools/label_vbus_photo.py`).
 - [ ] VBUS sense, later: a setting the viewer can save on the board, so the
       release images work with the mod too; and perhaps esp_tinyusb's
       self-powered mode (`vbus_monitor_io`), which would turn an unplug into
