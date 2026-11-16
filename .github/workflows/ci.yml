@@ -47,6 +47,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # The ESP-IDF Docker image plus the build need more room than a stock
+      # runner has spare, so drop preinstalled toolchains we never use.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
       # CI builds with the same ESP-IDF release the bootstrap scripts install.
       - name: Read the tested ESP-IDF version
         id: idf

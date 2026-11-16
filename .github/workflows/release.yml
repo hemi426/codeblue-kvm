@@ -39,6 +39,15 @@ jobs:
           echo "version=$code" >> "$GITHUB_OUTPUT"
           echo "idf=$(tr -d '[:space:]' < firmware/IDF_VERSION)" >> "$GITHUB_OUTPUT"
 
+      # The ESP-IDF Docker image plus the build need more room than a stock
+      # runner has spare, so drop preinstalled toolchains we never use.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
       - name: Build with ESP-IDF ${{ steps.version.outputs.idf }}
         uses: espressif/esp-idf-ci-action@v1
         with:
