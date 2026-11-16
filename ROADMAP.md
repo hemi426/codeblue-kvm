@@ -54,6 +54,13 @@ things worth doing, kept in one place so they don't get lost.
 - [ ] Test waking a sleeping target with a keypress (remote wakeup).
 - [ ] Test a target that puts the mouse in boot protocol.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
+- [ ] Keep-awake ("jiggle") mode: the board nudges the mouse (+1, then -1, so
+      the pointer never drifts) or taps an unused key such as F15 every so
+      often (60 s by default), so the target doesn't sleep or lock. Saved on
+      the board, so it also works standalone: plugged into the target alone,
+      which powers it, with no viewer or computer attached. Toggled from the
+      viewer, paused while someone is in control, with its own LED pattern
+      so nobody forgets it's on.
 - [x] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
       when built with a sense pin, and the viewer tells "asleep" from
       "unplugged or powered off"; the modification is in
