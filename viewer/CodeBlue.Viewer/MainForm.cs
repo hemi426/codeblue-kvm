@@ -842,7 +842,11 @@ internal sealed class MainForm : Form
 
         if (ev.Up)
         {
-            if (_held.Remove(usage)) _link.KeyUp(usage);
+            // A key that went down before capture started (Ctrl, Alt and C from
+            // Ctrl+Alt+C, say) was seen by the host, not the target. Let its
+            // release through too, or the host keeps it held down.
+            if (!_held.Remove(usage)) return false;
+            _link.KeyUp(usage);
 
             // Ctrl+Alt pressed together and released with no other key in between
             // releases capture (the VMware convention). Every keyboard has it.
