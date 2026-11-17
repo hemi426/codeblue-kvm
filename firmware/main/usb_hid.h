@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* TARGET_STATUS flag bits (docs/PROTOCOL.md). */
+/* TARGET_STATUS flag bits (docs/development/protocol.md). */
 #define TS_MOUNTED       (1u << 0)
 #define TS_SUSPENDED     (1u << 1)
 #define TS_KBD_BOOT      (1u << 2)

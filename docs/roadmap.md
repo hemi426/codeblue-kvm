@@ -8,11 +8,11 @@ things worth doing, kept in one place so they don't get lost.
 - [x] **CI:** build the firmware (both board presets) and the viewer on every
       push, and run the framing tests (`firmware/main/frame.c`'s test, moved
       into the repo, and `tools/cb_test.py selftest`).
-- [x] **`hardware/BOM.md`:** tested boards (with both USB ports), capture
-      dongles, and the video adapters below.
+- [x] **Parts list** (`docs/hardware/bom.md`): tested boards (with both USB
+      ports), capture dongles, and the video adapters below.
 - [x] **Issue template** for reporting a tested target (machine, BIOS or OS,
       keyboard, absolute and relative mouse, boot screens), feeding the table
-      in `hardware/README.md`.
+      in `docs/hardware/index.md`.
 
 ## Before going public
 
@@ -32,9 +32,9 @@ things worth doing, kept in one place so they don't get lost.
       logo and favicon from `assets/`. The site becomes the docs; the READMEs
       shrink to a short intro that links to it.
 - [ ] **Experiments page** on the docs site, clearly marked "at your own
-      risk" (in the repo for now: `hardware/experiments/`).
+      risk" (written up in `docs/experiments/`, ready for the site).
   - [x] MJPG at 1080p60 on the MS2130 stick's USB 3 mode: patched, flashed
-        and verified (`hardware/experiments/ms2130-mjpg-usb3/`).
+        and verified (`docs/experiments/ms2130-mjpg-usb3.md`).
   - [ ] Remove the UGREEN card's startup logo (not yet located in its image).
   - [ ] Maybe: 1080p60 on the stick's USB 2 mode (bandwidth may not allow it).
 - [ ] **Install from the browser:** an "Install CodeBlue" button on the docs
@@ -64,10 +64,10 @@ things worth doing, kept in one place so they don't get lost.
 - [x] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
       when built with a sense pin, and the viewer tells "asleep" from
       "unplugged or powered off"; the modification is in
-      `hardware/VBUS-SENSE.md`. Released in firmware 0.2.0 and viewer 0.3.0,
-      and tested on a modified N8R2 clone (100k/150k on GPIO21).
-- [x] VBUS sense photo in `hardware/VBUS-SENSE.md`: the finished mod on an
-      N16R8, with the sense pad marked (labels drawn by
+      `docs/hardware/vbus-sense.md`. Released in firmware 0.2.0 and viewer
+      0.3.0, and tested on a modified N8R2 clone (100k/150k on GPIO21).
+- [x] VBUS sense photo in `docs/hardware/vbus-sense.md`: the finished mod on
+      an N16R8, with the sense pad marked (labels drawn by
       `tools/label_vbus_photo.py`).
 - [ ] VBUS sense, later: a setting the viewer can save on the board, so the
       release images work with the mod too; and perhaps esp_tinyusb's
@@ -104,8 +104,8 @@ A parametric FreeCAD model, driven by a spreadsheet, so variants share one
 base design and fixing the fit fixes them all.
 
 - [ ] Base case for the ESP32-S3-DevKitC-1, with no headers soldered.
-- [ ] Room for the VBUS sense resistors (`hardware/VBUS-SENSE.md`), all on
-      the underside at the USB end: the 10 kΩ from the USB-OTG pad to the
+- [ ] Room for the VBUS sense resistors (`docs/hardware/vbus-sense.md`), all
+      on the underside at the USB end: the 10 kΩ from the USB-OTG pad to the
       GPIO21 hole, the 15 kΩ from GPIO21 to the GND hole beside it. A
       shallow pocket in the base should do.
 - [ ] Options:
@@ -134,8 +134,8 @@ base design and fixing the fit fixes them all.
       (MJPG only on USB 2, YUY2 only on USB 3).
 - [x] BOM: a USB 2.0 extension (C2G 52119) puts the MS2130 in its MJPG mode
       on a USB 3 port.
-- [ ] More targets for `hardware/README.md`: a Mac (an Intel Mac's Option-key
-      boot picker), more Dells, servers.
+- [ ] More targets for `docs/hardware/index.md`: a Mac (an Intel Mac's
+      Option-key boot picker), more Dells, servers.
 
 ## Done
 

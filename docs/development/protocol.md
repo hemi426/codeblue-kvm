@@ -293,13 +293,13 @@ setting:
   target, clicks land in the wrong place relative to the one captured screen.
 
 Whether a given BIOS accepts the absolute pointer varies by machine; tested
-results belong in `hardware/`.
+results belong in [the tested-targets table](../hardware/index.md#tested-targets).
 
 **VBUS sense (optional hardware).** Telling a sleeping target from an
 unplugged one needs the board to sense the target's 5 V USB power: a
 two-resistor voltage divider from the native port's VBUS (before its diode)
 to a spare GPIO. The ESP32-S3-DevKitC-1 doesn't have this; see
-[../hardware/VBUS-SENSE.md](../hardware/VBUS-SENSE.md) for the modification.
+[VBUS sense modification](../hardware/vbus-sense.md) for how to add it.
 Firmware built with a sense pin (`CONFIG_CODEBLUE_VBUS_GPIO`) sets
 capability bit 3 and reports `vbus_present`. The viewer then says "asleep"
 when the bus is suspended with power present, and "unplugged or powered off"

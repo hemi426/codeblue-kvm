@@ -1,5 +1,5 @@
 /*
- * Frame layer of the CodeBlue binary protocol (docs/PROTOCOL.md):
+ * Frame layer of the CodeBlue binary protocol (docs/development/protocol.md):
  * CRC-16/CCITT-FALSE plus COBS, with a 0x00 delimiter after each frame.
  *
  * Plain C with no ESP-IDF dependencies, so it can be tested on a PC.

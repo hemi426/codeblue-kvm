@@ -69,7 +69,7 @@ internal interface IKvmLink : IDisposable
     void SetLedBrightness(int percent, bool persist);
 }
 
-/// <summary>What the board reports about the target (TARGET_STATUS in docs/PROTOCOL.md).</summary>
+/// <summary>What the board reports about the target (TARGET_STATUS in docs/development/protocol.md).</summary>
 internal readonly record struct TargetStatus(byte Flags, byte KeyboardLeds)
 {
     public bool Mounted => (Flags & 0x01) != 0;

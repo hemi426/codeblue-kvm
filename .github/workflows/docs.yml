@@ -1,0 +1,74 @@
+# Builds the docs site from docs/ (Jekyll, Just the Docs) whenever the docs
+# change, and deploys it to GitHub Pages once the repository is public (Pages
+# on a private repository needs a paid plan).
+#
+# Until then, every run keeps the built site as an artifact named
+# "github-pages". To preview it: download it, unzip it, extract artifact.tar
+# into a folder named codeblue-kvm, run `python -m http.server` in that
+# folder's parent, and open http://localhost:8000/codeblue-kvm/.
+#
+# After making the repository public: Settings > Pages > Source: GitHub
+# Actions (once). From then on, each push to main that touches the docs
+# publishes the site.
+name: Docs site
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", "assets/**", ".github/workflows/docs.yml"]
+  pull_request:
+    paths: ["docs/**", "assets/**", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel a deployment halfway; a newer run waits its turn.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: docs
+
+      # One copy of the logo lives in assets/; the site gets it at build time.
+      - name: Copy the logo
+        run: cp assets/codeblue.svg docs/images/codeblue.svg
+
+      - name: Build the site
+        working-directory: docs
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec jekyll build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/_site
+
+  deploy:
+    name: Deploy
+    needs: build
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      !github.event.repository.private
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

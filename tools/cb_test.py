@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-CodeBlue test sender: talks the binary protocol (docs/PROTOCOL.md) to a board
-without the viewer.
+CodeBlue test sender: talks the binary protocol (docs/development/protocol.md)
+to a board without the viewer.
 
 Needs pyserial, which ESP-IDF's Python already has. After activating ESP-IDF:
 

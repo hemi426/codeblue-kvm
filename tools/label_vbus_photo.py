@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Draws the callout labels on the VBUS sense photo for hardware/VBUS-SENSE.md:
+Draws the callout labels on the VBUS sense photo for docs/hardware/vbus-sense.md:
 
-    hardware/images/vbus-sense-clean.jpg   the unlabelled photo (input)
-    hardware/images/vbus-sense.jpg         the labelled copy the doc shows
+    docs/images/hardware/vbus-sense-clean.jpg   the unlabelled photo (input)
+    docs/images/hardware/vbus-sense.jpg         the labelled copy the doc shows
 
 Label positions are given in the pixels of the original 2576-pixel-wide photo
 and scaled to whatever width the clean copy has. For a new photo, adjust
@@ -18,8 +18,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / 'hardware' / 'images' / 'vbus-sense-clean.jpg'
-DST = ROOT / 'hardware' / 'images' / 'vbus-sense.jpg'
+SRC = ROOT / 'docs' / 'images' / 'hardware' / 'vbus-sense-clean.jpg'
+DST = ROOT / 'docs' / 'images' / 'hardware' / 'vbus-sense.jpg'
 REF_WIDTH = 2576        # width the coordinates below were measured on
 OUT_WIDTH = 1200
 

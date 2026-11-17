@@ -5,8 +5,8 @@
  *       firmware/test/test_frame.c firmware/main/frame.c -o build/test_frame
  *   ./build/test_frame
  *
- * The expected bytes are the worked examples in docs/PROTOCOL.md; if one of
- * these fails, either the code or the spec is wrong.
+ * The expected bytes are the worked examples in docs/development/protocol.md;
+ * if one of these fails, either the code or the spec is wrong.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -31,7 +31,7 @@ static void check_encode(const char *name, uint8_t type, const uint8_t *payload,
 {
     uint8_t out[FRAME_MAX_WIRE];
     size_t n = frame_encode(type, payload, len, out);
-    CHECK(n == expected_len && memcmp(out, expected, n) == 0, "%s encodes differently from docs/PROTOCOL.md", name);
+    CHECK(n == expected_len && memcmp(out, expected, n) == 0, "%s encodes differently from docs/development/protocol.md", name);
 }
 
 /* Feeds bytes to a receiver; returns how many valid frames came out, and the last one. */
@@ -49,7 +49,7 @@ int main(void)
     /* CRC-16/CCITT-FALSE check value. */
     CHECK(frame_crc16((const uint8_t *)"123456789", 9) == 0x29B1, "CRC check value");
 
-    /* Worked examples from docs/PROTOCOL.md. */
+    /* Worked examples from docs/development/protocol.md. */
     const uint8_t ctrl_c[] = { 0x01, 0x01, 0x06 };
     const uint8_t ctrl_c_wire[] = { 0x07, 0x10, 0x01, 0x01, 0x06, 0xA0, 0xFB, 0x00 };
     check_encode("Ctrl+C", 0x10, ctrl_c, sizeof ctrl_c, ctrl_c_wire, sizeof ctrl_c_wire);

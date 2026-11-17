@@ -1,26 +1,26 @@
 # Hardware
 
-**What to buy:** see [BOM.md](BOM.md) for boards, capture dongles, cables and
-video adapters, which of them have been tested, and how to check a dongle
-before relying on it.
-
-Planned contents:
-
-- `case/`: FreeCAD source, STL and STEP exports, and printing notes for a slim,
-  header-free ESP32-S3-DevKitC-1 case.
-- `labels/`: label text for the case and the HOST/TARGET cables.
+- **[What to buy](bom.md):** boards, capture dongles, cables and video
+  adapters, which of them have been tested, and how to check a dongle before
+  relying on it.
 - **VBUS sense modification** (optional): two resistors, so the board can
   tell a sleeping target from an unplugged one. See
-  [VBUS-SENSE.md](VBUS-SENSE.md).
+  [VBUS sense](vbus-sense.md).
 - **Experiments** (unsupported, at your own risk): see
-  [experiments/](experiments/README.md), such as patching an MS2130 stick for
-  MJPG on USB 3.
+  [Experiments](../experiments/index.md), such as patching an MS2130 stick
+  for MJPG on USB 3.
+
+Planned: a slim, header-free case for the ESP32-S3-DevKitC-1 (FreeCAD source,
+STL and STEP exports, and printing notes), and label text for the case and
+the HOST/TARGET cables. Those are design files rather than docs, so they'll
+live in a `hardware/` folder at the repo root.
 
 ## Tested targets
 
 Tried CodeBlue on a machine that isn't listed, or found one that misbehaves?
-Please report it with the **Tested target** issue form on GitHub, so it can
-be added here.
+Please report it with the
+[Tested target](https://github.com/hemi426/codeblue-kvm/issues/new?template=tested-target.yml)
+issue form on GitHub, so it can be added here.
 
 What the target's firmware or OS accepted from the CodeBlue firmware
 (`firmware/`, protocol v1). "Report" or "boot" is the protocol the target put

@@ -14,4 +14,4 @@ Before trying one:
 
 | Experiment | What it does | Status |
 |------------|--------------|--------|
-| [MS2130 MJPG on USB 3](ms2130-mjpg-usb3/README.md) | Patches a $9 MS2130 capture stick to offer MJPG at 1080p60 on USB 3, where it otherwise offers only YUY2. | Working |
+| [MS2130 MJPG on USB 3](ms2130-mjpg-usb3.md) | Patches a $9 MS2130 capture stick to offer MJPG at 1080p60 on USB 3, where it otherwise offers only YUY2. | Working |

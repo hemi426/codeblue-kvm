@@ -3,8 +3,8 @@
  *
  * The native USB port is a keyboard, mouse and absolute pointer for the
  * target (usb_hid.c). The UART port talks to the viewer with the binary
- * protocol in docs/PROTOCOL.md (session.c, frame.c). The RGB LED shows
- * status, or whatever colour the viewer asks for (status_led.c).
+ * protocol in docs/development/protocol.md (session.c, frame.c). The RGB LED
+ * shows status, or whatever colour the viewer asks for (status_led.c).
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */

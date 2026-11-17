@@ -1,9 +1,9 @@
 namespace CodeBlue.Viewer.Link;
 
 /// <summary>
-/// Frame layer of the binary protocol (docs/PROTOCOL.md): CRC-16/CCITT-FALSE
-/// plus COBS, with a 0x00 delimiter after each frame. A port of
-/// firmware/main/frame.c; keep the two in step.
+/// Frame layer of the binary protocol (docs/development/protocol.md):
+/// CRC-16/CCITT-FALSE plus COBS, with a 0x00 delimiter after each frame. A
+/// port of firmware/main/frame.c; keep the two in step.
 /// </summary>
 internal static class Frame
 {

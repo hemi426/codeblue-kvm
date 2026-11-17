@@ -6,8 +6,8 @@ using CodeBlue.Viewer.Input;
 namespace CodeBlue.Viewer.Link;
 
 /// <summary>
-/// The CodeBlue binary protocol, version 1 (docs/PROTOCOL.md), spoken by the
-/// ESP-IDF firmware in firmware/.
+/// The CodeBlue binary protocol, version 1 (docs/development/protocol.md),
+/// spoken by the ESP-IDF firmware in firmware/.
 ///
 /// Keyboard and mouse go out as complete state, never as events: the board is
 /// always told every held key and button, so a lost frame is corrected by the

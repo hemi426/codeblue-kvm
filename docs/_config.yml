@@ -1,0 +1,90 @@
+# Jekyll configuration for the CodeBlue docs site (Just the Docs theme).
+# Built and deployed by .github/workflows/docs.yml; see that file for how to
+# preview it.
+#
+# The Markdown files carry no front matter, so they read cleanly on GitHub
+# too: each page's title and place in the navigation come from the defaults
+# at the bottom of this file. A new page needs an entry there.
+
+title: CodeBlue
+description: >-
+  A pocket crash cart: control a headless or misbehaving PC from your
+  computer, BIOS screens included.
+url: https://hemi426.github.io
+baseurl: /codeblue-kvm
+
+theme: just-the-docs
+color_scheme: codeblue
+logo: /images/codeblue.svg
+favicon_ico: /images/codeblue.svg
+
+aux_links:
+  CodeBlue on GitHub: https://github.com/hemi426/codeblue-kvm
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+search_enabled: true
+
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/hemi426/codeblue-kvm
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: edit
+
+footer_content: >-
+  CodeBlue is free software, licensed under the GPL-3.0-or-later.
+
+# Pages without front matter still get built (optional-front-matter), and
+# links between the .md files, which work on GitHub, become links between
+# pages here (relative-links).
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: false
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - .bundle
+  - .jekyll-cache
+
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+  - scope: { path: index.md }
+    values: { title: Home, nav_order: 1, permalink: / }
+  - scope: { path: getting-started.md }
+    values: { title: Getting started, nav_order: 2 }
+  - scope: { path: viewer.md }
+    values: { title: Viewer, nav_order: 3 }
+  - scope: { path: firmware.md }
+    values: { title: Firmware, nav_order: 4 }
+  - scope: { path: hardware/index.md }
+    values: { title: Hardware, nav_order: 5, has_children: true }
+  - scope: { path: hardware/bom.md }
+    values: { title: What to buy, parent: Hardware, nav_order: 1 }
+  - scope: { path: hardware/vbus-sense.md }
+    values: { title: VBUS sense, parent: Hardware, nav_order: 2 }
+  - scope: { path: troubleshooting.md }
+    values: { title: Troubleshooting, nav_order: 6 }
+  - scope: { path: development/index.md }
+    values: { title: Development, nav_order: 7, has_children: true }
+  - scope: { path: development/building.md }
+    values: { title: Building, parent: Development, nav_order: 1 }
+  - scope: { path: development/protocol.md }
+    values: { title: Protocol, parent: Development, nav_order: 2 }
+  - scope: { path: experiments/index.md }
+    values: { title: Experiments, nav_order: 8, has_children: true }
+  - scope: { path: experiments/ms2130-mjpg-usb3.md }
+    values: { title: MS2130 MJPG on USB 3, parent: Experiments, nav_order: 1 }
+  - scope: { path: roadmap.md }
+    values: { title: Roadmap, nav_order: 9 }

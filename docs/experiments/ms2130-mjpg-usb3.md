@@ -2,7 +2,7 @@
 
 **Status:** working. A $9 MS2130 HDMI capture stick now streams MJPG at 1920×1080 @ 60 fps over USB 3, verified with ffmpeg and VLC.
 
-> **Experimental and unsupported.** This rewrites the dongle's own firmware with a third-party tool. It worked on one firmware revision of one stick; yours may differ, and a bad write can brick it. Keep your original dump. See [the experiments overview](../README.md).
+> **Experimental and unsupported.** This rewrites the dongle's own firmware with a third-party tool. It worked on one firmware revision of one stick; yours may differ, and a bad write can brick it. Keep your original dump. See [the experiments overview](index.md).
 
 ## Why
 
@@ -26,7 +26,7 @@ Both expose a small vendor HID interface (interface 4, 64-byte interrupt IN endp
 - **MS21XX_MS91XX_DownloadTool V1.7.0** (build 20221024), Windows; SHA-256 `9ae4b86d00100aa29d73500c402d0bcc5656f6274a7f94c7caeb2af98d578e68`. The UI is partly in Chinese.
 - **USB Tree View** for descriptor dumps.
 - **ffmpeg / ffprobe** for stream verification.
-- Python scripts: `build_patch.py` (builds the patched image) and `check_image.py` (independently re-parses and verifies it).
+- Python scripts in [`tools/ms2130-mjpg-usb3/`](https://github.com/hemi426/codeblue-kvm/blob/main/tools/ms2130-mjpg-usb3): `build_patch.py` (builds the patched image) and `check_image.py` (independently re-parses and verifies it).
 
 ### Download tool settings and gotchas
 
@@ -178,14 +178,14 @@ The scripts are GPL-3.0-or-later. The firmware images are MacroSilicon's code an
 
 | File | Purpose |
 |---|---|
-| [`build_patch.py`](build_patch.py) | Builds the patched image from your own dump of dongle A. Refuses any input that doesn't match A's SHA-256, which also protects sticks with a different firmware revision. |
-| [`check_image.py`](check_image.py) | Independent verifier: header, trailer, pointer decode, descriptor walk, byte diff against the original. |
+| [`build_patch.py`](https://github.com/hemi426/codeblue-kvm/blob/main/tools/ms2130-mjpg-usb3/build_patch.py) | Builds the patched image from your own dump of dongle A. Refuses any input that doesn't match A's SHA-256, which also protects sticks with a different firmware revision. |
+| [`check_image.py`](https://github.com/hemi426/codeblue-kvm/blob/main/tools/ms2130-mjpg-usb3/check_image.py) | Independent verifier: header, trailer, pointer decode, descriptor walk, byte diff against the original. |
 
-To reproduce:
+To reproduce, from the repo root:
 
 ```
-python3 build_patch.py my_dump.bin A_mjpg_usb3_v1.bin
-python3 check_image.py my_dump.bin A_mjpg_usb3_v1.bin    # must end with ALL CHECKS PASSED
+python3 tools/ms2130-mjpg-usb3/build_patch.py my_dump.bin A_mjpg_usb3_v1.bin
+python3 tools/ms2130-mjpg-usb3/check_image.py my_dump.bin A_mjpg_usb3_v1.bin    # must end with ALL CHECKS PASSED
 ```
 
 The output should hash to `85dda69f…be26`. Keep your original dump: it's your restore image.

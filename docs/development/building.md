@@ -84,7 +84,7 @@ that plugin to the list.
 
 The firmware builds with ESP-IDF on Windows, Linux or macOS (the three hosts
 ESP-IDF supports). Board presets, logging and testing are covered in
-[../firmware/README.md](../firmware/README.md).
+[Firmware](../firmware.md).
 
 ### ESP-IDF version
 
@@ -151,7 +151,7 @@ build defaults, delete `firmware/sdkconfig` first; the build stops with that
 instruction if it notices a mismatch.
 
 For a board with the VBUS sense modification
-([../hardware/VBUS-SENSE.md](../hardware/VBUS-SENSE.md)), run
+([VBUS sense](../hardware/vbus-sense.md)), run
 `idf.py menuconfig` and set **CodeBlue → VBUS sense GPIO** to the pin you
 wired (21 on the tested clones) before building. The setting lives in
 `firmware/sdkconfig`, so set it again after deleting that file.

@@ -27,7 +27,7 @@ internal sealed class MainForm : Form
     // libVLC debug output is capped; warnings and errors are always written.
     private const long MaxVlcLogBytes = 20L * 1024 * 1024;
 
-    // Mouse modes (see "Mouse modes" in docs/PROTOCOL.md).
+    // Mouse modes (see "Mouse modes" in docs/development/protocol.md).
     private const string MouseAuto = "Auto", MouseAbsolute = "Absolute", MouseRelative = "Relative";
 
     private static readonly string VlcLogPath = Path.Combine(

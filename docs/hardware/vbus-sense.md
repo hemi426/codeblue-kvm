@@ -4,7 +4,7 @@ Two resistors let the board sense the target's USB power, so the viewer can
 tell a sleeping target ("asleep; a keypress may wake it") from an unplugged
 or powered-off one ("unplugged or powered off"). Without it, both look the
 same over USB, and the viewer says "asleep or disconnected". See "Asleep or
-unplugged" in [../docs/PROTOCOL.md](../docs/PROTOCOL.md) for why.
+unplugged" in [the protocol spec](../development/protocol.md) for why.
 
 Even with the mod, "no USB power" isn't conclusive: some PCs cut USB power
 when fully off or hibernating, and some keep it on.
@@ -29,7 +29,7 @@ when fully off or hibernating, and some keep it on.
 
 ## Where it goes
 
-These notes are for the ESP32-S3-DevKitC-1 clones in [BOM.md](BOM.md)
+These notes are for the ESP32-S3-DevKitC-1 clones in [What to buy](bom.md)
 (AITRIP and DORHEA). Check your own board with a multimeter before
 soldering: clones differ, and the solder pads in particular don't always
 match Espressif's board.
@@ -72,7 +72,7 @@ sense pad ──[10 kΩ]──┬── GPIO21
 - The 10 kΩ runs from the sense pad to the GPIO21 hole; the 15 kΩ from the
   GPIO21 hole to a neighbouring GND hole. Everything stays on the underside.
 
-![The finished mod on the underside of an N16R8 board](images/vbus-sense.jpg)
+![The finished mod on the underside of an N16R8 board](../images/hardware/vbus-sense.jpg)
 
 *The finished mod on a DORHEA N16R8, underside up, USB ports to the right,
 with 100k/150k. The 100 kΩ (in green sleeving) runs from the sense pad down
@@ -116,7 +116,7 @@ PSRAM (N16R8 and other "R8" boards), and 47 (1.8 V on some modules).
 
 The release images don't read the pin, since on an unmodified board it would
 float. Build the firmware with the pin set (see
-[../docs/BUILDING.md](../docs/BUILDING.md)):
+[Building](../development/building.md)):
 
 ```sh
 idf.py menuconfig          # CodeBlue → VBUS sense GPIO: 21

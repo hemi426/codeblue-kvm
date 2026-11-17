@@ -1,6 +1,6 @@
 /*
- * The host side: the binary protocol (docs/PROTOCOL.md) over UART0, which
- * the DevKitC's "UART" USB port bridges to the host.
+ * The host side: the binary protocol (docs/development/protocol.md) over
+ * UART0, which the DevKitC's "UART" USB port bridges to the host.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
