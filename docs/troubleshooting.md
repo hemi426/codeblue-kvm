@@ -29,8 +29,11 @@ the captured frame itself, unscaled.
 
 **Target stuck at 640x480 after its display sleeps?** Seen with the UGREEN
 15389 dongle: when the target's display wakes, it can fall back to 640x480
-until the dongle is replugged. The recommended MS2130 stick doesn't do this
-(see [What to buy](hardware/bom.md#capture-dongles)).
+(and may show up in Windows' display settings as "Wired Display" rather than
+the dongle's own name). If the target's display settings still offer
+1920x1080, choosing it may be enough; otherwise, replug the dongle. The
+recommended MS2130 stick doesn't do this (see
+[What to buy](hardware/bom.md#capture-dongles)).
 
 **Viewer freezes on Disconnect or when closing?** Seen with the UGREEN 15389:
 after the target's display sleeps, the dongle can stop sending video without

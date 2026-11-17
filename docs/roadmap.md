@@ -49,7 +49,7 @@ things worth doing, kept in one place so they don't get lost.
       the README and on the docs site, credits (including what CodeBlue is
       built on), a CI status badge in the README, and `global.json` pinned to
       the current .NET 10 SDK.
-- [ ] **Make the repository public,** then set Settings → Pages → Source to
+- [x] **Make the repository public,** then set Settings → Pages → Source to
       GitHub Actions so the docs site deploys.
 - [x] **CI:** skip builds for changes that only touch
       `.github/ISSUE_TEMPLATE/`, and leave version tags to the release workflow.
