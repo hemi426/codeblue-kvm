@@ -1,0 +1,7 @@
+// CodeBlue's colours on Just the Docs' dark scheme. Links use a lighter blue
+// than the logo's #1565C0, which is too dark to read on a dark background;
+// buttons keep #1565C0, since their text sits on it.
+@import "./color_schemes/dark";
+
+$link-color: #64b5f6;
+$btn-primary-color: #1565c0;

@@ -1,0 +1,55 @@
+<script>
+  // Light or dark: follows the system setting unless the reader picks one
+  // with the header button (saved in this browser). Runs in the head, before
+  // anything is drawn, so the page never flashes the wrong scheme.
+  (function () {
+    var KEY = 'codeblue-theme';
+    var dark = window.matchMedia('(prefers-color-scheme: dark)');
+    var LABELS = { system: 'Theme: System', light: 'Theme: Light', dark: 'Theme: Dark' };
+    var unsaved = null; // the choice, when the browser won't let us save it
+
+    function choice() {
+      if (unsaved) return unsaved;
+      try {
+        var saved = localStorage.getItem(KEY);
+        return saved === 'light' || saved === 'dark' ? saved : 'system';
+      } catch (e) {
+        return 'system';
+      }
+    }
+
+    function apply() {
+      var c = choice();
+      var scheme = c === 'system' ? (dark.matches ? 'dark' : 'light') : c;
+      var links = document.querySelectorAll('link[rel="stylesheet"]');
+      for (var i = 0; i < links.length; i++) {
+        var href = links[i].getAttribute('href');
+        if (/just-the-docs-(default|codeblue-light|codeblue-dark)\.css/.test(href)) {
+          links[i].setAttribute('href', href.replace(
+            /just-the-docs-(default|codeblue-light|codeblue-dark)\.css/,
+            'just-the-docs-codeblue-' + scheme + '.css'));
+        }
+      }
+      var button = document.getElementById('theme-toggle');
+      if (button) button.textContent = LABELS[c];
+    }
+
+    // System, then Light, then Dark, then back to System.
+    window.codeblueNextTheme = function () {
+      var next = { system: 'light', light: 'dark', dark: 'system' }[choice()];
+      try {
+        if (next === 'system') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, next);
+        unsaved = null;
+      } catch (e) {
+        unsaved = next; // storage blocked: the choice lasts for this page only
+      }
+      apply();
+    };
+
+    if (dark.addEventListener) dark.addEventListener('change', apply);
+    else if (dark.addListener) dark.addListener(apply);
+    document.addEventListener('DOMContentLoaded', apply);
+    apply();
+  })();
+</script>

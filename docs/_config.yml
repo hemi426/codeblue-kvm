@@ -14,7 +14,10 @@ url: https://hemi426.github.io
 baseurl: /codeblue-kvm
 
 theme: just-the-docs
-color_scheme: codeblue
+# Light or dark follows the reader's system setting, with a button in the
+# header to override it (_includes/head_custom.html). This scheme is the
+# fallback when JavaScript is off.
+color_scheme: codeblue-dark
 logo: /images/codeblue.svg
 favicon_ico: /images/codeblue.svg
 
