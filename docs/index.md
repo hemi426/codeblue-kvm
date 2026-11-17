@@ -43,6 +43,26 @@ binary protocol with checksums and heartbeats, a keyboard and mouse that work
 in BIOS setup screens, a pointer that lands exactly where you click, and
 nothing left held down when a cable comes out.
 
+### How is it different from JetKVM or PiKVM?
+
+They solve a different problem. JetKVM and PiKVM are KVM-over-IP devices: you
+install one on a particular machine, put it on the network, and reach that
+machine from anywhere through a browser. CodeBlue is a crash cart: you carry
+it to whichever machine needs help, plug it into your laptop, and take it
+with you when you're done. So CodeBlue:
+
+- **Needs no network at all,** just USB between your laptop and the target.
+  That helps when the network is the problem, when a new machine isn't on one
+  yet, or when policy doesn't allow unapproved devices on it.
+- **Serves many machines, one at a time,** rather than one device per machine.
+- **Needs no setup:** no IP address, no accounts, and no web interface to
+  secure.
+- **Costs $20 to $30 in parts,** and it's open source down to the firmware.
+
+If you want permanent remote access to one machine, a KVM-over-IP device is
+the better tool. If you want a monitor, keyboard, and mouse in your pocket,
+that's CodeBlue.
+
 ## What works
 
 - **Viewer** (Windows): low-latency video, keyboard and mouse capture with an
