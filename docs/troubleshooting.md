@@ -32,5 +32,11 @@ the captured frame itself, unscaled.
 until the dongle is replugged. The recommended MS2130 stick doesn't do this
 (see [What to buy](hardware/bom.md#capture-dongles)).
 
+**Viewer freezes on Disconnect or when closing?** Seen with the UGREEN 15389:
+after the target's display sleeps, the dongle can stop sending video without
+reporting an error, and the viewer then hangs waiting for it to stop. End
+**CodeBlue** in Task Manager and start it again. The recommended MS2130 stick
+hasn't done this, and a fix in the viewer is planned.
+
 **Can't type in the viewer's own fields while capturing?** That's by design:
 release capture first (Ctrl+Alt).

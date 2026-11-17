@@ -81,6 +81,14 @@ things worth doing, kept in one place so they don't get lost.
 
 ## Viewer
 
+- [ ] **0.3.4: don't hang on a stalled dongle.** A dongle that stops sending
+      frames without an error (the UGREEN, after the target's display sleeps)
+      leaves libVLC waiting, and `Stop()` on the window's thread then freezes
+      the viewer (confirmed with a dump). Call libVLC off the window's thread;
+      if `Stop()` doesn't return within a few seconds, abandon that player,
+      make a fresh one, and say so in the status bar; don't wait at all on
+      exit. Add an fps counter that doubles as a watchdog: "no video from the
+      dongle" in the status bar when frames stop.
 - [ ] Horizontal scrolling (`pan`) from tilt wheels and touchpads.
 - [ ] Polish: dropdown widths, better DirectShow device listing, settings per
       capture device, and a view of the modes a dongle offers. Ideally the
