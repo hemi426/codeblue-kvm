@@ -9,7 +9,7 @@ version, and the reference for what the scripts do.
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| .NET SDK | 10.0.100 or newer 10.0.x | Pinned in `global.json` at the repo root |
+| .NET SDK | 10.0.404 or newer 10.0.x | Pinned in `global.json` at the repo root, so releases ship the current .NET 10 runtime |
 | Git | any recent | |
 | VS Code + C# Dev Kit | optional | Any editor works; `dotnet` does the building |
 
@@ -65,14 +65,26 @@ libVLC comes in two packages that must stay at the same version:
 capture). Without the second one, video fails with "VLC is unable to open the
 MRL 'dshow://'" in `%LOCALAPPDATA%\CodeBlue\libvlc.log`.
 
-### Publishing a standalone build
+### Publishing
+
+There are two ways to publish the viewer, matching the two zips in each
+release. Each command writes a folder you can copy to another machine and run
+`CodeBlue.exe` from.
+
+**Portable** (about 63 MB zipped): runs on any 64-bit Windows 10 or 11
+machine, since it includes the .NET runtime and libVLC.
 
 ```powershell
-dotnet publish viewer\CodeBlue.Viewer -c Release -r win-x64 --self-contained
+dotnet publish viewer\CodeBlue.Viewer -c Release -r win-x64 --self-contained -o publish\portable
 ```
 
-The output folder runs on machines without .NET installed. It includes the
-.NET runtime and libVLC.
+**Small** (about 14 MB zipped): includes libVLC but not .NET, so the machine
+needs the .NET 10 Desktop Runtime, installed once
+(`winget install Microsoft.DotNet.DesktopRuntime.10`).
+
+```powershell
+dotnet publish viewer\CodeBlue.Viewer -c Release -r win-x64 --no-self-contained -o publish\small
+```
 
 The viewer ships only the parts of libVLC it uses (x64 only, and about 20 of
 its roughly 330 plugins), listed in `CodeBlue.Viewer.csproj` under
@@ -82,8 +94,8 @@ that plugin to the list.
 
 ## Firmware (ESP32-S3)
 
-The firmware builds with ESP-IDF on Windows, Linux or macOS (the three hosts
-ESP-IDF supports). Board presets, logging and testing are covered in
+The firmware builds with ESP-IDF on Windows, Linux, or macOS (the three hosts
+ESP-IDF supports). Board presets, logging, and testing are covered in
 [Firmware](../firmware.md).
 
 ### ESP-IDF version

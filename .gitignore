@@ -3,6 +3,7 @@ bin/
 obj/
 *.user
 .vs/
+publish/
 
 # ESP-IDF
 firmware/build/
@@ -16,6 +17,7 @@ docs/.jekyll-cache/
 docs/.bundle/
 docs/vendor/
 docs/images/codeblue.svg
+docs/install/
 
 # Editors and OS
 .vscode/*

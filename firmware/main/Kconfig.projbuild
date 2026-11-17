@@ -41,8 +41,8 @@ menu "CodeBlue"
         default -1
         help
             Only for boards with the VBUS sense modification
-            (docs/hardware/vbus-sense.md): a 10k/15k divider from the
-            native USB port's 5 V to this GPIO, so the viewer can tell a
+            (docs/hardware/vbus-sense.md): a 2:3 resistor divider from
+            the native USB port's 5 V to this GPIO, so the viewer can tell a
             sleeping target from an unplugged one. GPIO21 suits the
             DevKitC-1 and its clones. Leave at -1 on an unmodified board: a
             floating pin would report USB power at random.

@@ -14,16 +14,17 @@ and links):
 - **Two USB data cables** for the board: one to your computer, one to the
   target.
 - **An HDMI cable,** plus an adapter if the target has only DisplayPort,
-  USB-C or another video output.
+  USB-C, or another video output.
 
 The viewer runs on Windows 10 or 11 (64-bit).
 
 ## 2. Flash the firmware
 
-Download the firmware image for your board from the latest firmware release
-and write it to the board with esptool. [Flashing](firmware.md#flashing) has
-the command and which file to pick. You only do this once per board (and
-again when you want a newer version).
+Plug the board's **UART** port into your computer, open
+[Flashing](firmware.md#from-your-browser) in Chrome or Edge, and click the
+install button for your board. For other browsers, the same page shows how to
+flash with esptool instead. You only do this once per board (and again when
+you want a newer version).
 
 ## 3. Get the viewer
 
@@ -48,4 +49,5 @@ From here:
   capture.
 - If something doesn't work, see [Troubleshooting](troubleshooting.md).
 - Tried CodeBlue on a machine that isn't in
-  [Tested targets](hardware/index.md#tested-targets)? Please report it.
+  [Tested targets](hardware/index.md#tested-targets)? Please
+  [report it](https://github.com/hemi426/codeblue-kvm/issues/new?template=tested-target.yml).

@@ -1,6 +1,6 @@
 # Hardware
 
-- **[What to buy](bom.md):** boards, capture dongles, cables and video
+- **[What to buy](bom.md):** boards, capture dongles, cables, and video
   adapters, which of them have been tested, and how to check a dongle before
   relying on it.
 - **VBUS sense modification** (optional): two resistors, so the board can
@@ -30,4 +30,4 @@ the keyboard in, as shown by `tools/cb_test.py`.
 |--------|----------|------------------|----------------|-------|
 | Dell OptiPlex 5080, BIOS setup | Works (report) | Works | Works | F2 during POST enters setup. Num Lock LED reported. |
 | FreeBSD (console) | Works (report) | Enumerates (hms, "Tablet") | Enumerates (hms) | Caps Lock LED reported. |
-| Dell Precision 7680, Windows | Works | Works | Not tested | Video over USB-C (Thunderbolt 4) through a USB-C to HDMI adapter. Lock screen, sign-in and desktop control all worked. The viewer's Ctrl+Alt+Del button needs viewer 0.3.2 or later (earlier versions sent it too fast to register). |
+| Dell Precision 7680, Windows | Works | Works | Not tested | Video over USB-C (Thunderbolt 4) through a USB-C to HDMI adapter. Lock screen, sign-in, and desktop control all worked. The viewer's Ctrl+Alt+Del button needs viewer 0.3.2 or later (earlier versions sent it too fast to register). |

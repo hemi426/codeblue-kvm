@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 The CodeBlue Authors
+# Copyright (C) 2026 Josh Tolbert
 """Independent checker for a patched MS2130 flash image against the original dump.
 Derives everything from the patched bytes (decodes the 8051 pointer instructions itself)
 rather than trusting the builder. Usage: check_image.py original.bin patched.bin"""

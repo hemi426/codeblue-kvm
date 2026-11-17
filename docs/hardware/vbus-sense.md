@@ -6,8 +6,8 @@ or powered-off one ("unplugged or powered off"). Without it, both look the
 same over USB, and the viewer says "asleep or disconnected". See "Asleep or
 unplugged" in [the protocol spec](../development/protocol.md) for why.
 
-Even with the mod, "no USB power" isn't conclusive: some PCs cut USB power
-when fully off or hibernating, and some keep it on.
+Even with the mod, "no USB power" isn't conclusive: some computers cut USB
+power when fully off or hibernating, and some keep it on.
 
 ## What you need
 
@@ -108,9 +108,9 @@ bottom resistor) turns the divider into a low-pass filter that swallows the
 spikes entirely. It slows the signal by a few milliseconds at most (about
 6 ms with 100k/150k), which is instant as far as the viewer is concerned.
 
-If you use another GPIO, avoid 0, 3, 45 and 46 (boot mode), 19 and 20 (USB),
-43 and 44 (the UART), the LED pin (48 or 38), 33 to 37 on boards with octal
-PSRAM (N16R8 and other "R8" boards), and 47 (1.8 V on some modules).
+If you use another GPIO, avoid 0, 3, 45, and 46 (boot mode); 19 and 20
+(USB); 43 and 44 (the UART); the LED pin (48 or 38); 33 to 37 on boards with
+octal PSRAM (N16R8 and other "R8" boards); and 47 (1.8 V on some modules).
 
 ## Firmware
 

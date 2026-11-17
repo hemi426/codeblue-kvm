@@ -26,26 +26,31 @@ things worth doing, kept in one place so they don't get lost.
       the two viewer zips (small, 13.7 MB, and portable, 62.7 MB), and
       assemble a draft release. First used for firmware 0.1.1 and viewer
       0.2.0; the released firmware image was flashed and works.
-- [ ] **Docs site** on GitHub Pages (Jekyll, like DarkStage): home, getting
-      started, user guide, tested hardware, troubleshooting, building from
-      source, protocol reference, about. Accent colour `#1565C0`, heartbeat
-      logo and favicon from `assets/`. The site becomes the docs; the READMEs
-      shrink to a short intro that links to it.
-- [ ] **Experiments page** on the docs site, clearly marked "at your own
-      risk" (written up in `docs/experiments/`, ready for the site).
-  - [x] MJPG at 1080p60 on the MS2130 stick's USB 3 mode: patched, flashed
+- [x] **Docs site** on GitHub Pages (Jekyll, Just the Docs), built from
+      `docs/`: home, getting started, viewer, firmware, hardware,
+      troubleshooting, development, and experiments. Light and dark schemes in
+      the logo's blue (`#1565C0`), following the system setting with a header
+      override; logo and favicon from `assets/`. The READMEs are now short
+      intros that link to it. Builds on every docs change; deploys once the
+      repository is public.
+- [x] **Experiments page** on the docs site, clearly marked "at your own
+      risk" (`docs/experiments/`).
+  - [x] MJPG at 1080p60 on the MS2130 stick's USB 3 mode: patched, flashed,
         and verified (`docs/experiments/ms2130-mjpg-usb3.md`).
-  - [ ] Remove the UGREEN card's startup logo (not yet located in its image).
+  - [ ] Remove the UGREEN dongle's startup logo (not yet located in its image).
   - [ ] Maybe: 1080p60 on the stick's USB 2 mode (bandwidth may not allow it).
-- [ ] **Install from the browser:** an "Install CodeBlue" button on the docs
+- [x] **Install from the browser:** an "Install CodeBlue" button on the docs
       site using ESP Web Tools (the flasher ESPHome uses), with a manifest per
       board preset. The firmware images have to be published on the Pages
       site itself, since browsers can't fetch GitHub release downloads from
       another site. Chrome and Edge only (Web Serial), so the esptool
       command stays in the docs as the fallback.
-- [ ] **Housekeeping:** CHANGELOG, a copyright line (full name) in the README
-      and LICENSE, credits check, a CI status badge in the README, then make
-      the repository public.
+- [x] **Housekeeping:** the LICENSE file, a CHANGELOG, a copyright line in
+      the README and on the docs site, credits (including what CodeBlue is
+      built on), a CI status badge in the README, and `global.json` pinned to
+      the current .NET 10 SDK.
+- [ ] **Make the repository public,** then set Settings → Pages → Source to
+      GitHub Actions so the docs site deploys.
 - [x] **CI:** skip builds for changes that only touch
       `.github/ISSUE_TEMPLATE/`, and leave version tags to the release workflow.
 
@@ -86,7 +91,7 @@ things worth doing, kept in one place so they don't get lost.
       older). Until then, the default stays 30 fps.
 - [ ] Optional audio from the dongle: an Audio checkbox (off by default)
       that pairs the dongle's USB audio input with its video device. Needs a
-      real audio output, the uncompressed-audio decoder and perhaps a
+      real audio output, the uncompressed-audio decoder, and perhaps a
       resampler back in the allowlist (under 2 MB). Favour low latency over
       lip sync. (Today, Windows' "Listen to this device" on the dongle's audio
       input works as a stopgap.)
@@ -125,9 +130,10 @@ base design and fixing the fit fixes them all.
 
 ## Kit and testing
 
-- [ ] Video adapters for targets without HDMI: USB-C to HDMI (the port needs
-      DisplayPort Alt Mode or Thunderbolt), DisplayPort to HDMI, Mini
-      DisplayPort to HDMI, and a powered VGA to HDMI converter.
+- [x] Video adapters for targets without HDMI: USB-C to HDMI (the port needs
+      DisplayPort Alt Mode or Thunderbolt), DisplayPort to HDMI, and Mini
+      DisplayPort to HDMI, all tested. VGA (a powered converter) and DVI stay
+      untested in the parts list, for anyone with such a machine to report.
 - [x] A second ESP32-S3 board, so one can stay on known-good firmware: ten
       DORHEA N16R8 clones arrived, and the first runs the release image fine.
 - [x] BOM: the DORHEA N16R8 marked tested, and a genuine MS2130 dongle added

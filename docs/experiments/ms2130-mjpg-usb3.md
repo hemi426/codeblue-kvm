@@ -6,7 +6,7 @@
 
 ## Why
 
-CodeBlue's viewer uses libVLC 3, which shows soft, blurry text when fed YUY2. The cheap stick we prefer (better colours, no startup logo) only offers YUY2 on USB 3 and only offers MJPG on USB 2, where it tops out at 1080p50. A UGREEN card built on the same MS2130 chip offers MJPG at 1080p60 over USB 3, which proved the silicon can do it.
+CodeBlue's viewer uses libVLC 3, which shows soft, blurry text when fed YUY2. The cheap stick we prefer (better colours, no startup logo) only offers YUY2 on USB 3 and only offers MJPG on USB 2, where it tops out at 1080p50. A UGREEN dongle built on the same MS2130 chip offers MJPG at 1080p60 over USB 3, which proved the silicon can do it.
 
 ## Hardware
 
@@ -122,7 +122,7 @@ file 0x5476  74 17 2B F5 82 74 C3 3A          ; DPTR = 0xC317 + offset
 3. **USB 3 serial changed** from "20210623" to "CBMJPG01", so a running patched image is identifiable at a glance.
 4. **Code length** 51625 → 52945; trailer recalculated to `25FB 5922`.
 
-The USB 2 descriptors, EDID and the old USB 3 config are byte-identical to the original. The builder refuses any input whose hash differs from A's verified dump.
+The USB 2 descriptors, EDID, and the old USB 3 config are byte-identical to the original. The builder refuses any input whose hash differs from A's verified dump.
 
 | | Size | SHA-256 |
 |---|---|---|

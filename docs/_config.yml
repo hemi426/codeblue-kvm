@@ -4,7 +4,9 @@
 #
 # The Markdown files carry no front matter, so they read cleanly on GitHub
 # too: each page's title and place in the navigation come from the defaults
-# at the bottom of this file. A new page needs an entry there.
+# at the bottom of this file. A new page needs an entry there. Parent pages
+# link their own children, so has_toc: false turns off the theme's automatic
+# list of child pages.
 
 title: CodeBlue
 description: >-
@@ -36,7 +38,8 @@ gh_edit_source: docs
 gh_edit_view_mode: edit
 
 footer_content: >-
-  CodeBlue is free software, licensed under the GPL-3.0-or-later.
+  Copyright &copy; 2026 Josh Tolbert. CodeBlue is free software, licensed
+  under the <a href="https://github.com/hemi426/codeblue-kvm/blob/main/LICENSE">GPL-3.0-or-later</a>.
 
 # Pages without front matter still get built (optional-front-matter), and
 # links between the .md files, which work on GitHub, become links between
@@ -72,7 +75,7 @@ defaults:
   - scope: { path: firmware.md }
     values: { title: Firmware, nav_order: 4 }
   - scope: { path: hardware/index.md }
-    values: { title: Hardware, nav_order: 5, has_children: true }
+    values: { title: Hardware, nav_order: 5, has_children: true, has_toc: false }
   - scope: { path: hardware/bom.md }
     values: { title: What to buy, parent: Hardware, nav_order: 1 }
   - scope: { path: hardware/vbus-sense.md }
@@ -80,13 +83,13 @@ defaults:
   - scope: { path: troubleshooting.md }
     values: { title: Troubleshooting, nav_order: 6 }
   - scope: { path: development/index.md }
-    values: { title: Development, nav_order: 7, has_children: true }
+    values: { title: Development, nav_order: 7, has_children: true, has_toc: false }
   - scope: { path: development/building.md }
     values: { title: Building, parent: Development, nav_order: 1 }
   - scope: { path: development/protocol.md }
     values: { title: Protocol, parent: Development, nav_order: 2 }
   - scope: { path: experiments/index.md }
-    values: { title: Experiments, nav_order: 8, has_children: true }
+    values: { title: Experiments, nav_order: 8, has_children: true, has_toc: false }
   - scope: { path: experiments/ms2130-mjpg-usb3.md }
     values: { title: MS2130 MJPG on USB 3, parent: Experiments, nav_order: 1 }
   - scope: { path: roadmap.md }

@@ -1,9 +1,9 @@
 # CodeBlue firmware
 
-ESP-IDF (C) firmware for the ESP32-S3: a USB keyboard, mouse and absolute
+ESP-IDF (C) firmware for the ESP32-S3: a USB keyboard, mouse, and absolute
 pointer for the target, driven by the viewer over the board's UART port.
 
-- Flashing, board presets, the status LED, logs and testing:
+- Flashing, board presets, the status LED, logs, and testing:
   [docs/firmware.md](../docs/firmware.md)
 - Setting up ESP-IDF and building: [docs/development/building.md](../docs/development/building.md)
 - The protocol: [docs/development/protocol.md](../docs/development/protocol.md)

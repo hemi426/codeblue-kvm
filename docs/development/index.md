@@ -16,7 +16,7 @@ and the protocol between them.
 | `viewer/` | Windows app (.NET 10, WinForms, LibVLCSharp) |
 | `firmware/` | ESP32-S3 firmware (ESP-IDF, C) |
 | `scripts/` | Bootstrap scripts that check for and install build tools |
-| `tools/` | Test sender (`cb_test.py`), icon and photo scripts, experiment scripts |
+| `tools/` | Test sender (`cb_test.py`), icon and photo scripts, and experiment scripts |
 | `docs/` | This documentation, which is also the source of the docs site |
 | `assets/` | The logo and icon |
 

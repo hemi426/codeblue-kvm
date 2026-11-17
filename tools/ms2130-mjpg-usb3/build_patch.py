@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 The CodeBlue Authors
+# Copyright (C) 2026 Josh Tolbert
 """Build an MJPG-on-USB3 image for MS2130 dongle A (345F:2130, code length 51625, code sum B559).
 
 Changes, and nothing else:

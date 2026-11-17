@@ -1,15 +1,24 @@
 # Builds the docs site from docs/ (Jekyll, Just the Docs) whenever the docs
-# change, and deploys it to GitHub Pages once the repository is public (Pages
-# on a private repository needs a paid plan).
+# change or a release is published, and deploys it to GitHub Pages once the
+# repository is public (Pages on a private repository needs a paid plan).
 #
-# Until then, every run keeps the built site as an artifact named
-# "github-pages". To preview it: download it, unzip it, extract artifact.tar
-# into a folder named codeblue-kvm, run `python -m http.server` in that
-# folder's parent, and open http://localhost:8000/codeblue-kvm/.
+# The site includes the browser installer (docs/firmware.md): each build
+# copies the latest firmware release's images into docs/install/ and writes
+# an ESP Web Tools manifest per board preset next to them. Browsers can't
+# flash files fetched from GitHub's release downloads (another site), so the
+# images have to be served by the site itself.
+#
+# Until the repository is public, every run keeps the built site as an
+# artifact named "github-pages". To preview it: download it, unzip it,
+# extract artifact.tar into a folder named codeblue-kvm, run
+# `python -m http.server` in that folder's parent, and open
+# http://localhost:8000/codeblue-kvm/. (The installer needs the real site:
+# Web Serial works only over HTTPS or on localhost, and the preview is on
+# localhost, so it should work there too.)
 #
 # After making the repository public: Settings > Pages > Source: GitHub
-# Actions (once). From then on, each push to main that touches the docs
-# publishes the site.
+# Actions (once). From then on, each push to main that touches the docs, and
+# each published release, publishes the site.
 name: Docs site
 
 on:
@@ -18,14 +27,17 @@ on:
     paths: ["docs/**", "assets/**", ".github/workflows/docs.yml"]
   pull_request:
     paths: ["docs/**", "assets/**", ".github/workflows/docs.yml"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Never cancel a deployment halfway; a newer run waits its turn.
+# Deployments queue up rather than cancel each other halfway; pull requests
+# get their own groups.
 concurrency:
-  group: docs-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'docs-pages' }}
   cancel-in-progress: false
 
 jobs:
@@ -33,7 +45,11 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
+      # A release event checks out the release's tag by default, which may
+      # be behind main; the site always comes from main.
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'release' && 'main' || '' }}
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -44,6 +60,46 @@ jobs:
       # One copy of the logo lives in assets/; the site gets it at build time.
       - name: Copy the logo
         run: cp assets/codeblue.svg docs/images/codeblue.svg
+
+      - name: Add the latest firmware for the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts \
+                   --exclude-pre-releases --limit 100 --json tagName,publishedAt \
+                   --jq '[.[] | select(.tagName | startswith("firmware-v"))]
+                         | sort_by(.publishedAt) | last | .tagName // empty')"
+          if [ -z "$tag" ]; then
+            echo "::warning::No published firmware release; the installer buttons won't work."
+            exit 0
+          fi
+          v="${tag#firmware-v}"
+          mkdir -p docs/install
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'codeblue-firmware-*.bin' --dir docs/install
+          for board in esp32-s3-devkitc-1-v1.0 esp32-s3-devkitc-1-v1.1; do
+            bin="codeblue-firmware-$v-$board.bin"
+            if [ ! -f "docs/install/$bin" ]; then
+              echo "::error::$tag has no $bin."
+              exit 1
+            fi
+            # The merged image holds bootloader, partition table and app, so
+            # it's written at offset 0. improv_wait_time 0: CodeBlue doesn't
+            # speak Improv (Wi-Fi setup), so don't wait for it after flashing.
+            cat > "docs/install/$board.json" <<JSON
+          {
+            "name": "CodeBlue firmware",
+            "version": "$v",
+            "new_install_prompt_erase": true,
+            "new_install_improv_wait_time": 0,
+            "builds": [
+              { "chipFamily": "ESP32-S3", "parts": [ { "path": "$bin", "offset": 0 } ] }
+            ]
+          }
+          JSON
+          done
+          ls -l docs/install
+          echo "Installer serves firmware $v." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build the site
         working-directory: docs
@@ -60,7 +116,7 @@ jobs:
     needs: build
     if: >-
       github.event_name != 'pull_request' &&
-      github.ref == 'refs/heads/main' &&
+      (github.ref == 'refs/heads/main' || github.event_name == 'release') &&
       !github.event.repository.private
     runs-on: ubuntu-latest
     permissions:

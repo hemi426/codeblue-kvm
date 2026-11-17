@@ -79,10 +79,9 @@ key to the App/Menu key code (`KC_APP`) in your keyboard's configuration tool.
 Capture ends only when you ask, or when your keystrokes might go somewhere
 you can't see:
 
-- **You release it:** Ctrl+Alt (or the Menu key), **Disconnect**, or closing
-  the viewer.
-- **The viewer loses focus:** a UAC prompt, a notification you click,
-  Ctrl+Alt+Del or Win+L, or another program taking the foreground.
+- **You release it:** Ctrl+Alt (or the Menu key).
+- **The viewer loses focus:** a UAC prompt, Ctrl+Alt+Del or Win+L, or
+  another program taking the foreground.
 - **The board is lost:** it stops answering, or its cable is pulled. The
   viewer reconnects by itself, but waits for you to capture again.
 

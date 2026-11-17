@@ -3,11 +3,11 @@
 The viewer talks to the ESP32 over its UART bridge port using the CodeBlue
 protocol below. In the viewer, the protocol sits behind one interface
 (`viewer/CodeBlue.Viewer/Link/IKvmLink.cs`), which works in HID terms:
-keyboard usage IDs, mouse buttons and deltas.
+keyboard usage IDs, mouse buttons, and movement deltas.
 
 ## CodeBlue protocol, version 1 (draft)
 
-**Status: draft.** Implemented by the ESP-IDF firmware, the viewer and
+**Status: draft.** Implemented by the ESP-IDF firmware, the viewer, and
 `tools/cb_test.py`. Until it's released, details may change without a version
 bump.
 
@@ -80,8 +80,7 @@ Before encoding, a frame is:
 1. The host opens the port and sends `HELLO`, repeating it every 250 ms until
    the device answers with `INFO`, for up to 2 seconds.
 2. No answer: the host reports "No CodeBlue firmware found on this port" and
-   closes it. (Old Arduino firmware never answers; see the safety note
-   below.)
+   closes it.
 3. The device answers `INFO`, then sends `TARGET_STATUS`.
 4. The host may send `SESSION_CONFIG` to change the timeout.
 5. Both sides start sending `HEARTBEAT`s. The host may now send input.
@@ -248,10 +247,10 @@ For diagnostics only; the host logs it and carries on.
 In USB the target does all the talking: a device speaks only when polled. A
 sleeping target suspends the bus (no polling at all), and a pulled cable
 leaves the bus silent too, so the board sees both as `suspended`. The only
-physical difference is USB power: a sleeping PC usually keeps it on, a
+physical difference is USB power: a sleeping computer usually keeps it on, a
 pulled cable doesn't. A board with VBUS sense can tell them apart; without
 it, the viewer says "asleep or disconnected". Even VBUS isn't conclusive,
-since some PCs cut USB power when fully off or hibernating.
+since some computers cut USB power when fully off or hibernating.
 
 What each side does:
 
@@ -305,23 +304,15 @@ capability bit 3 and reports `vbus_present`. The viewer then says "asleep"
 when the bus is suspended with power present, and "unplugged or powered off"
 when there's no power.
 
-### Safety with the old Arduino firmware
-
-The viewer might be pointed at a board still running the Arduino firmware
-CodeBlue started from. Its parser runs a command only when it reads a
-newline after three numbers, so the encoded `HELLO` frame is chosen to contain
-no newline (`0x0A`), no ASCII digit and no minus sign. The exact bytes are:
-
-```
-09 01 43 42 4C 55 01 59 BE 00
-```
-
-That is type `0x01`, magic `"CBLU"`, protocol major 1, CRC `0xBE59`, COBS
-encoded, then the delimiter. The old firmware reads it, times out, and does
-nothing. Hosts must send nothing else until the device has answered with
-`INFO`.
-
 ### Worked examples
+
+The opening `HELLO`: type `0x01`, magic `"CBLU"`, protocol major 1:
+
+| Stage | Bytes |
+|-------|-------|
+| Type and payload | `01 43 42 4C 55 01` |
+| Plus CRC (`0xBE59`) | `01 43 42 4C 55 01 59 BE` |
+| On the wire (COBS, delimiter) | `09 01 43 42 4C 55 01 59 BE 00` |
 
 Holding Left Ctrl+C: `KEYBOARD`, modifiers `0x01`, one usage (`0x06`, C):
 

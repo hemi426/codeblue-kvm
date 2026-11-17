@@ -2,8 +2,10 @@
 
 Everything CodeBlue needs, and what has actually been tested. "Tested" means
 used with CodeBlue on real targets; everything else is a reasonable choice
-that nobody has confirmed yet. If you try something new, please report it
-(see [Tested targets](index.md#tested-targets)).
+that nobody has confirmed yet. If you try something new, please
+[report it](https://github.com/hemi426/codeblue-kvm/issues/new/choose) on
+GitHub (a new target machine has
+[its own form](https://github.com/hemi426/codeblue-kvm/issues/new?template=tested-target.yml)).
 
 ## Required
 
@@ -15,7 +17,7 @@ that nobody has confirmed yet. If you try something new, please report it
 | **HDMI cable** | Target to dongle. | Any. |
 | **A Windows PC** | Windows 10 or 11, 64-bit (x64), for the viewer. | Windows 11: tested. |
 
-Avoid boards with a single USB port (many "S3 Mini", "S3 Zero" and
+Avoid boards with a single USB port (many "S3 Mini", "S3 Zero", and
 "Super Mini" boards): CodeBlue needs one port for the target and one for
 your computer.
 
@@ -78,7 +80,7 @@ three. Plug the dongle in, find it in the tree, and read:
   hardware even when listings change. MacroSilicon's chips are the usual ones
   inside cheap dongles: a product ID of `2109` means the MS2109 (USB 2),
   while the MS2130 (`345F:2130`) supports real USB 3. Branded dongles may use
-  their maker's own ID instead (UGREEN's MS2130 card is `2B89:5389`); the
+  their maker's own ID instead (UGREEN's MS2130 dongle is `2B89:5389`); the
   Manufacturer string ("MACROSILICON") still gives the chip away.
 - **Device maximum Speed:** "SuperSpeed" means the dongle can do USB 3;
   "High-Speed" means it's a USB 2 device, whatever the box says. (Device
@@ -115,7 +117,7 @@ these all convert *to* HDMI.
 |---------|-----|--------|
 | DisplayPort to HDMI (cable or adapter) | Most business desktops of the last decade, many with DisplayPort only. Tested: a 6 ft cable, and the UGREEN 4K DisplayPort to HDMI adapter ([Amazon](https://www.amazon.com/dp/B0FCLXJHTX)). | Tested |
 | USB-C to HDMI | Newer laptops and small desktops. The port must carry video: look for a DisplayPort (D) or Thunderbolt (lightning bolt) symbol. Tested on a Dell Precision 7680 (Thunderbolt 4): the Highwings adapter ([Amazon](https://www.amazon.com/dp/B08GC1K9TF)), the Anker adapter ([Amazon](https://www.amazon.com/dp/B07THJGZ9Z)), and the Anker 3 ft cable ([Amazon](https://www.amazon.com/dp/B0DM9BLJND)), which plugs straight into the dongle. | Tested |
-| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs and graphics cards. Tested on an NVIDIA T400: a 6 ft Mini DisplayPort to HDMI cable ([Amazon](https://www.amazon.com/dp/B0134V3KIA)), the simplest option, and also the card's own Mini-DP to DP adapter followed by the DP to HDMI adapter above. | Tested |
+| Mini DisplayPort to HDMI | Older Macs (about 2010 to 2015), some small PCs, and graphics cards. Tested on an NVIDIA T400: a 6 ft Mini DisplayPort to HDMI cable ([Amazon](https://www.amazon.com/dp/B0134V3KIA)), the simplest option, and also the card's own Mini-DP to DP adapter followed by the DP to HDMI adapter above. | Tested |
 | DVI to HDMI (passive cable or adapter) | Older desktops and workstations with DVI-D or DVI-I ports; same digital signal as HDMI, so no conversion needed | Untested |
 | VGA to HDMI, **powered** | Old machines with VGA only. Must be an active converter, since VGA is analogue. | Untested |
 
