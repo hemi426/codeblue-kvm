@@ -77,10 +77,14 @@ jobs:
           mkdir -p docs/install
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
             --pattern 'codeblue-firmware-*.bin' --dir docs/install
-          for board in esp32-s3-devkitc-1-v1.0 esp32-s3-devkitc-1-v1.1; do
-            bin="codeblue-firmware-$v-$board.bin"
-            if [ ! -f "docs/install/$bin" ]; then
-              echo "::error::$tag has no $bin."
+          # Match on the board revision at the end of the file name: releases
+          # up to 0.2.0 named the presets devkitc-v1.0/-v1.1, later ones
+          # esp32-s3-devkitc-1-v1.0/-v1.1. The manifests use the new names.
+          for rev in 1.0 1.1; do
+            board="esp32-s3-devkitc-1-v$rev"
+            bin="$(cd docs/install && ls codeblue-firmware-"$v"-*v"$rev".bin 2>/dev/null | head -n 1)"
+            if [ -z "$bin" ]; then
+              echo "::error::$tag has no image for v$rev boards."
               exit 1
             fi
             # The merged image holds bootloader, partition table and app, so
