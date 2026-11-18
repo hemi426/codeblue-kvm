@@ -58,6 +58,13 @@ things worth doing, kept in one place so they don't get lost.
 
 - [ ] Test waking a sleeping target with a keypress (remote wakeup).
 - [ ] Test a target that puts the mouse in boot protocol.
+- [ ] Tell the viewer when the target ignores the absolute pointer, so
+      **Mouse: Auto** can switch to relative by itself. Dell SupportAssist
+      On-board Diagnostics on an OptiPlex 5080 uses the relative mouse in
+      report protocol and never reads the absolute pointer, so Auto stays on
+      absolute and nothing moves.
+      If the absolute pointer's reports go unread (its endpoint stays busy),
+      the board could flag it in `TARGET_STATUS`.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
 - [ ] Keep-awake ("jiggle") mode: the board nudges the mouse (+1, then -1, so
       the pointer never drifts) or taps an unused key such as F15 every so

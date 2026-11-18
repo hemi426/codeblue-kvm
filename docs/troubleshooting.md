@@ -18,6 +18,11 @@ often just 5 or 10 fps), and asking for one they lack gives a black screen.
 The status bar says when that's the cause. Otherwise it names the problem,
 and `%LOCALAPPDATA%\CodeBlue\libvlc.log` has the details.
 
+**Mouse doesn't move on the target?** Some BIOS screens and diagnostics tools
+(e.g., Dell SupportAssist On-board Diagnostics) ignore the absolute pointer,
+and **Mouse: Auto** can't always tell. Set **Mouse** to **Relative**. See
+[Mouse](viewer.md#mouse).
+
 **Video lag?** Keep **Format** on MJPG and **Cache ms** around 50. Many
 dongles can only deliver 1080p at full frame rate as MJPEG.
 

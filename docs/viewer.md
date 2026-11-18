@@ -51,6 +51,11 @@ The viewer remembers your choices in `%APPDATA%\CodeBlue\viewer.json`.
 - **Relative:** an ordinary mouse. Use it for targets with more than one
   monitor, where absolute positions span the whole desktop.
 
+If the pointer doesn't move in a BIOS screen or a diagnostics tool, choose
+**Relative**. Some (e.g., Dell SupportAssist On-board Diagnostics) ignore the
+absolute pointer without asking for the boot mouse, so **Auto** never gets its
+cue to switch.
+
 ## Keys
 
 | Key | Action |
