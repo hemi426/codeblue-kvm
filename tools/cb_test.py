@@ -15,6 +15,9 @@ Needs pyserial, which ESP-IDF's Python already has. After activating ESP-IDF:
     python tools/cb_test.py COM10 scroll -3
     python tools/cb_test.py COM10 led 255 0 255
     python tools/cb_test.py COM10 brightness 20 [--persist]
+    python tools/cb_test.py COM10 get                    # board settings (firmware 0.3.0 and later)
+    python tools/cb_test.py COM10 set vbus-gpio 21       # a GPIO, "none", or "default"
+    python tools/cb_test.py COM10 set led-gpio 38
     python tools/cb_test.py COM10 timeout-test    # holds Shift, goes silent, checks the board lets go
     python tools/cb_test.py selftest              # checks the framing code; no board needed
 """
@@ -93,9 +96,17 @@ def decode_frame(encoded: bytes):
 HELLO, HEARTBEAT, SESSION_CONFIG = 0x01, 0x02, 0x03
 KEYBOARD, MOUSE_ABS, MOUSE_REL = 0x10, 0x20, 0x21
 LED, LED_BRIGHTNESS, RELEASE_ALL = 0x30, 0x31, 0x40
-INFO, DEV_HEARTBEAT, TARGET_STATUS, ERROR = 0x81, 0x82, 0x90, 0xE0
+SETTING_GET, SETTING_SET = 0x50, 0x51
+INFO, DEV_HEARTBEAT, TARGET_STATUS, SETTING, ERROR = 0x81, 0x82, 0x90, 0xA0, 0xE0
 
-STATUS_BITS = ["mounted", "suspended", "kbd_boot", "mouse_boot", "remote_wakeup", "vbus_present"]
+STATUS_BITS = ["mounted", "suspended", "kbd_boot", "mouse_boot", "remote_wakeup", "vbus_present",
+               "abs_unread"]
+CAP_SETTINGS = 1 << 4
+SETTINGS = {"led-gpio": 1, "vbus-gpio": 2}
+SETTING_NAMES = {v: k for k, v in SETTINGS.items()}
+SETTING_VALUES = {"none": -1, "default": -2}
+SETTING_RESULTS = {0: "ok", 1: "unknown setting", 2: "not a usable pin for that",
+                   3: "the other setting uses that pin", 4: "couldn't apply or save it"}
 LED_BITS = ["Num", "Caps", "Scroll"]
 ERRORS = {1: "unknown message type", 2: "bad payload length", 3: "USB report failed"}
 
@@ -156,6 +167,8 @@ class Board:
         self.last_rx = 0.0
         self.heartbeats = True
         self.got_info = threading.Event()
+        self.settings = {}  # key -> (value, result)
+        self.got_setting = threading.Event()
         self.stop = threading.Event()
         threading.Thread(target=self._reader, daemon=True).start()
 
@@ -187,6 +200,9 @@ class Board:
             self.status = (p[0], p[1])
             if self.announced:
                 self._print_status()
+        elif t == SETTING and len(p) >= 4:
+            self.settings[p[0]] = (struct.unpack_from("<h", p, 1)[0], p[3])
+            self.got_setting.set()
         elif t == ERROR and len(p) >= 2:
             print(f"  board error: {ERRORS.get(p[0], p[0])} (detail 0x{p[1]:02X})")
         elif t == DEV_HEARTBEAT:
@@ -265,6 +281,59 @@ def cmd_key(b: Board, combo: str, hold: float):
     b.send(keyboard(mods, usages[:6]))
     time.sleep(hold)
     b.send(keyboard(0))
+
+
+def describe_setting(key: int, value: int, result: int) -> str:
+    name = SETTING_NAMES.get(key, f"setting {key}")
+    shown = "none" if value < 0 else f"GPIO{value}"
+    note = "" if result == 0 else f" ({SETTING_RESULTS.get(result, result)})"
+    return f"  {name}: {shown}{note}"
+
+
+def setting_request(b: Board, msg_type: int, payload: bytes) -> tuple[int, int] | None:
+    key = payload[0]
+    b.settings.pop(key, None)
+    b.got_setting.clear()
+    b.send(encode_frame(msg_type, payload))
+    deadline = time.monotonic() + 1.0
+    while key not in b.settings and time.monotonic() < deadline:
+        b.got_setting.wait(0.05)
+        b.got_setting.clear()
+    return b.settings.get(key)
+
+
+def cmd_settings(b: Board, command: str, args: list[str]) -> bool:
+    if not b.info["capabilities"] & CAP_SETTINGS:
+        print("This firmware has no board settings (needs firmware 0.3.0 or later).")
+        return False
+    if command == "get":
+        names = args or list(SETTINGS)
+        ok = True
+        for name in names:
+            if name not in SETTINGS:
+                sys.exit(f"Unknown setting '{name}'; settings: {', '.join(SETTINGS)}")
+            reply = setting_request(b, SETTING_GET, bytes([SETTINGS[name]]))
+            if reply is None:
+                print(f"  {name}: no answer")
+                ok = False
+            else:
+                print(describe_setting(SETTINGS[name], *reply))
+        return ok
+    if len(args) != 2 or args[0] not in SETTINGS:
+        sys.exit(f"Usage: set <{'|'.join(SETTINGS)}> <GPIO|none|default>")
+    name, raw = args
+    value = SETTING_VALUES.get(raw.lower())
+    if value is None:
+        try:
+            value = int(raw.lower().removeprefix("gpio"))
+        except ValueError:
+            sys.exit(f"'{raw}' isn't a GPIO number, 'none', or 'default'")
+    reply = setting_request(b, SETTING_SET, struct.pack("<Bh", SETTINGS[name], value))
+    if reply is None:
+        print(f"  {name}: no answer")
+        return False
+    print(describe_setting(SETTINGS[name], *reply))
+    return reply[1] == 0
 
 
 def cmd_timeout_test(b: Board):
@@ -352,6 +421,8 @@ def main():
             b.send(encode_frame(LED, bytes(int(v) for v in args[:3])))
         elif c == "brightness":
             b.send(encode_frame(LED_BRIGHTNESS, bytes([int(args[0]), 1 if a.persist else 0])))
+        elif c in ("get", "set"):
+            ok = cmd_settings(b, c, args)
         elif c == "timeout-test":
             ok = cmd_timeout_test(b)
         else:

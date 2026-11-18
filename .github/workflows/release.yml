@@ -23,7 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        board: [esp32-s3-devkitc-1-v1.0, esp32-s3-devkitc-1-v1.1]
+        # One image suits every DevKitC-style board: the LED and VBUS sense
+        # pins are board settings, set from the viewer.
+        board: [esp32-s3-devkitc-1]
     steps:
       - uses: actions/checkout@v6
 
@@ -60,7 +62,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/out"
           cp firmware/build/merged-binary.bin \
-             "$RUNNER_TEMP/out/codeblue-firmware-${{ steps.version.outputs.version }}-${{ matrix.board }}.bin"
+             "$RUNNER_TEMP/out/codeblue-firmware-${{ steps.version.outputs.version }}.bin"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -145,19 +147,19 @@ jobs:
               cat > notes.md <<EOF
           CodeBlue firmware $v for the ESP32-S3-DevKitC-1 and compatible boards.
 
-          **Which file:** \`esp32-s3-devkitc-1-v1.0\` suits most boards, including the
-          common clones (RGB LED on GPIO48). Use \`esp32-s3-devkitc-1-v1.1\` for boards
-          with the LED on GPIO38. If the LED stays dark but everything else works, you
-          have the other kind.
+          **Easiest:** install it from your browser (Chrome or Edge) at
+          https://hemi426.github.io/codeblue-kvm/firmware#flashing
 
-          **Flashing:** plug in the board's UART port, then (esptool comes with ESP-IDF,
-          or \`pip install esptool\`):
+          **With esptool:** plug in the board's UART port, then (esptool comes with
+          ESP-IDF, or \`pip install esptool\`):
 
           \`\`\`
-          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v-esp32-s3-devkitc-1-v1.0.bin
+          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v.bin
           \`\`\`
 
-          Use your board's port in place of COM10. \`SHA256SUMS.txt\` lists each file's checksum.
+          Use your board's port in place of COM10. One image suits every DevKitC-style
+          board: if the status LED stays dark, set its pin in the viewer's board settings.
+          \`SHA256SUMS.txt\` lists each file's checksum.
           EOF
               ;;
             viewer-v*)

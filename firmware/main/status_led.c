@@ -7,6 +7,8 @@
 #include "led_strip.h"
 #include "nvs.h"
 
+#include "settings.h"
+
 static const char *TAG = "led";
 
 #define NVS_NAMESPACE "codeblue"
@@ -29,6 +31,29 @@ static void show(void)
     led_strip_refresh(s_led);
 }
 
+/* Creates an LED driver on `pin` in *out, or none (NULL) for a negative pin. */
+static bool attach(int16_t pin, led_strip_handle_t *out)
+{
+    *out = NULL;
+    if (pin < 0)
+        return true;
+    const led_strip_config_t strip_config = {
+        .strip_gpio_num = pin,
+        .max_leds = 1,
+        .led_model = LED_MODEL_WS2812,
+        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+    };
+    const led_strip_rmt_config_t rmt_config = {
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000, /* 10 MHz: 0.1 us per tick */
+    };
+    if (led_strip_new_rmt_device(&strip_config, &rmt_config, out) != ESP_OK) {
+        *out = NULL;
+        return false;
+    }
+    return true;
+}
+
 void status_led_init(void)
 {
     nvs_handle_t nvs;
@@ -39,20 +64,24 @@ void status_led_init(void)
         nvs_close(nvs);
     }
 
-    const led_strip_config_t strip_config = {
-        .strip_gpio_num = CONFIG_CODEBLUE_LED_GPIO,
-        .max_leds = 1,
-        .led_model = LED_MODEL_WS2812,
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-    };
-    const led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz = 10 * 1000 * 1000, /* 10 MHz: 0.1 us per tick */
-    };
-    if (led_strip_new_rmt_device(&strip_config, &rmt_config, &s_led) != ESP_OK) {
-        ESP_LOGE(TAG, "No LED on GPIO%d; carrying on without it", CONFIG_CODEBLUE_LED_GPIO);
-        s_led = NULL;
+    int16_t pin = settings_get(SETTING_LED_GPIO);
+    if (!attach(pin, &s_led))
+        ESP_LOGE(TAG, "No LED on GPIO%d; carrying on without it", pin);
+}
+
+bool status_led_set_gpio(int16_t pin)
+{
+    /* Set up the new pin first, so a failure leaves the old LED working. */
+    led_strip_handle_t led;
+    if (!attach(pin, &led))
+        return false;
+    if (s_led) {
+        led_strip_clear(s_led); /* don't leave the old pin's LED lit */
+        led_strip_del(s_led);
     }
+    s_led = led;
+    show();
+    return true;
 }
 
 void status_led_set(uint8_t r, uint8_t g, uint8_t b)

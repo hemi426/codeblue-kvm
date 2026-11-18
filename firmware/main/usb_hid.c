@@ -10,11 +10,14 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
 #include "tusb.h"
+
+#include "settings.h"
 
 static const char *TAG = "usb";
 
@@ -108,9 +111,24 @@ static abs_state_t s_abs;
 static uint8_t s_abs_sent_buttons;
 static uint16_t s_abs_sent_x, s_abs_sent_y;
 
+/* The absolute pointer is the one interface a target may ignore while still
+ * using the others (some firmware tools read only the mouse). A report it
+ * never collects stays in flight; past ABS_UNREAD_MS that sets
+ * TS_ABS_UNREAD, and the next collected report clears it. */
+#define ABS_UNREAD_MS 1000 /* long enough for an OS to load its driver for it */
+static volatile bool s_abs_in_flight;
+static volatile uint32_t s_abs_sent_ms;
+
+static int16_t s_vbus_gpio = SETTING_NONE;
+
 static volatile uint8_t s_kbd_leds;
 static volatile bool s_remote_wakeup_enabled;
 static volatile bool s_wake_sent;
+
+static uint32_t now_ms(void)
+{
+    return (uint32_t)(esp_timer_get_time() / 1000);
+}
 
 static int8_t clamp8(int32_t v)
 {
@@ -181,7 +199,13 @@ static void pump_abs(void)
         return;
     int8_t wheel = clamp8(s_abs.wheel), pan = clamp8(s_abs.pan);
     abs_state_t a = s_abs;
-    if (tud_hid_n_abs_mouse_report(ITF_ABS, 0, a.buttons, (int16_t)a.x, (int16_t)a.y, wheel, pan)) {
+    /* Mark it in flight before queueing it: the completion callback (another
+     * task) can run before tud_hid_n_abs_mouse_report returns. */
+    s_abs_sent_ms = now_ms();
+    s_abs_in_flight = true;
+    if (!tud_hid_n_abs_mouse_report(ITF_ABS, 0, a.buttons, (int16_t)a.x, (int16_t)a.y, wheel, pan)) {
+        s_abs_in_flight = false;
+    } else {
         s_abs.wheel -= wheel;
         s_abs.pan -= pan;
         s_abs_sent_x = a.x;
@@ -255,38 +279,33 @@ void usb_hid_poll(void)
     xSemaphoreGive(s_lock);
 }
 
-/* VBUS sense (optional): the native port's 5 V through a 10k/15k divider. */
-#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
-#if CONFIG_CODEBLUE_VBUS_GPIO == 19 || CONFIG_CODEBLUE_VBUS_GPIO == 20
-#error "CODEBLUE_VBUS_GPIO: GPIO19 and GPIO20 are the native USB port's data lines."
-#endif
-#if CONFIG_CODEBLUE_VBUS_GPIO == 43 || CONFIG_CODEBLUE_VBUS_GPIO == 44
-#error "CODEBLUE_VBUS_GPIO: GPIO43 and GPIO44 carry the host UART."
-#endif
-#if CONFIG_CODEBLUE_VBUS_GPIO == CONFIG_CODEBLUE_LED_GPIO
-#error "CODEBLUE_VBUS_GPIO is the status LED's pin."
-#endif
-#endif
-
+/* VBUS sense (optional): the native port's 5 V through a 2:3 divider, on a
+ * pin from settings (settings.c checks it). */
 bool usb_hid_has_vbus_sense(void)
 {
-    return CONFIG_CODEBLUE_VBUS_GPIO >= 0;
+    return s_vbus_gpio >= 0;
 }
 
-static void vbus_sense_init(void)
+bool usb_hid_set_vbus_gpio(int16_t pin)
 {
-#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
-    /* No internal pulls: the divider's 15k holds the pin low when the target
-     * supplies no power, and a pull would shift its levels. */
-    const gpio_config_t io = {
-        .pin_bit_mask = 1ULL << CONFIG_CODEBLUE_VBUS_GPIO,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_ERROR_CHECK(gpio_config(&io));
-#endif
+    if (pin >= 0) {
+        /* No internal pulls: the divider's lower resistor holds the pin low
+         * when the target supplies no power, and a pull would shift its
+         * levels. */
+        const gpio_config_t io = {
+            .pin_bit_mask = 1ULL << pin,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        if (gpio_config(&io) != ESP_OK)
+            return false;
+    }
+    if (s_vbus_gpio >= 0 && s_vbus_gpio != pin)
+        gpio_reset_pin(s_vbus_gpio);
+    s_vbus_gpio = pin;
+    return true;
 }
 
 uint8_t usb_hid_status(void)
@@ -298,16 +317,16 @@ uint8_t usb_hid_status(void)
             f |= TS_KBD_BOOT;
         if (tud_hid_n_get_protocol(ITF_MOUSE) == HID_PROTOCOL_BOOT)
             f |= TS_MOUSE_BOOT;
+        if (!tud_suspended() && s_abs_in_flight && now_ms() - s_abs_sent_ms > ABS_UNREAD_MS)
+            f |= TS_ABS_UNREAD;
     }
     if (tud_suspended()) {
         f |= TS_SUSPENDED;
         if (s_remote_wakeup_enabled)
             f |= TS_REMOTE_WAKEUP;
     }
-#if CONFIG_CODEBLUE_VBUS_GPIO >= 0
-    if (gpio_get_level(CONFIG_CODEBLUE_VBUS_GPIO))
+    if (s_vbus_gpio >= 0 && gpio_get_level(s_vbus_gpio))
         f |= TS_VBUS_PRESENT;
-#endif
     return f;
 }
 
@@ -343,6 +362,7 @@ static void on_usb_event(tinyusb_event_t *event, void *arg)
         s_rel_sent_buttons = s_abs_sent_buttons = 0;
         xSemaphoreGive(s_lock);
         s_kbd_leds = 0;
+        s_abs_in_flight = false; /* the reset dropped it */
         break;
     case TINYUSB_EVENT_SUSPENDED:
         s_remote_wakeup_enabled = event->suspended.remote_wakeup;
@@ -355,6 +375,7 @@ static void on_usb_event(tinyusb_event_t *event, void *arg)
         break;
     case TINYUSB_EVENT_RESUMED:
         s_remote_wakeup_enabled = false;
+        s_abs_sent_ms = now_ms(); /* time asleep doesn't count as ignored */
         break;
     default:
         break;
@@ -387,7 +408,9 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
 {
-    (void)instance; (void)report; (void)len;
+    (void)report; (void)len;
+    if (instance == ITF_ABS)
+        s_abs_in_flight = false; /* the target is reading the absolute pointer */
     /* Send whatever is still pending (the rest of a long relative move, or
      * a state change that arrived while this report was in flight). */
     if (xSemaphoreTake(s_lock, 0) == pdTRUE) { /* if busy, the session task is pumping anyway */
@@ -402,7 +425,9 @@ void usb_hid_init(void)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock);
-    vbus_sense_init();
+    int16_t vbus = settings_get(SETTING_VBUS_GPIO);
+    if (vbus >= 0 && !usb_hid_set_vbus_gpio(vbus))
+        ESP_LOGE(TAG, "Couldn't set up VBUS sense on GPIO%d", vbus);
 
     uint8_t mac[6] = { 0 };
     esp_efuse_mac_get_default(mac);

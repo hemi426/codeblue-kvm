@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [esp32-s3-devkitc-1-v1.0, esp32-s3-devkitc-1-v1.1]
+        board: [esp32-s3-devkitc-1]
     steps:
       - uses: actions/checkout@v6
 

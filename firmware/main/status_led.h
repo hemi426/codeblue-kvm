@@ -13,8 +13,13 @@
 #define LED_NO_HOST 0, 0, 255 /* blue: running, waiting for the viewer */
 #define LED_HOST    0, 255, 0 /* green: viewer connected */
 
-/* Initializes the LED and loads the saved brightness. Needs NVS initialized. */
+/* Initializes the LED on the pin from settings (settings_init first) and
+ * loads the saved brightness. Needs NVS initialized. */
 void status_led_init(void);
+
+/* Moves the LED to another GPIO (or none, for a negative pin) and shows the
+ * current colour there. False if the LED driver couldn't be set up on it. */
+bool status_led_set_gpio(int16_t pin);
 
 void status_led_set(uint8_t r, uint8_t g, uint8_t b);
 

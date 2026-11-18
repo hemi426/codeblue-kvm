@@ -14,6 +14,7 @@
 #include "freertos/task.h"
 
 #include "frame.h"
+#include "settings.h"
 #include "status_led.h"
 #include "usb_hid.h"
 
@@ -23,7 +24,7 @@ static const char *TAG = "session";
 #define UART_BAUD 921600
 
 #define PROTOCOL_MAJOR 1
-#define PROTOCOL_MINOR 0
+#define PROTOCOL_MINOR 1
 
 #define HEARTBEAT_MS 100
 #define STATUS_MS 1000
@@ -34,6 +35,7 @@ static const char *TAG = "session";
 #define CAP_REL_MOUSE  (1u << 1)
 #define CAP_PERSISTENT (1u << 2)
 #define CAP_VBUS_SENSE (1u << 3)
+#define CAP_SETTINGS   (1u << 4)
 
 enum {
     MSG_HELLO = 0x01,
@@ -45,10 +47,13 @@ enum {
     MSG_LED = 0x30,
     MSG_LED_BRIGHTNESS = 0x31,
     MSG_RELEASE_ALL = 0x40,
+    MSG_SETTING_GET = 0x50,
+    MSG_SETTING_SET = 0x51,
 
     MSG_INFO = 0x81,
     MSG_DEV_HEARTBEAT = 0x82,
     MSG_TARGET_STATUS = 0x90,
+    MSG_SETTING = 0xA0,
     MSG_ERROR = 0xE0,
 };
 
@@ -84,7 +89,7 @@ static void send_info(void)
 {
     unsigned major = 0, minor = 0, patch = 0;
     sscanf(esp_app_get_description()->version, "%u.%u.%u", &major, &minor, &patch);
-    uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT;
+    uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT | CAP_SETTINGS;
     if (usb_hid_has_vbus_sense())
         caps |= CAP_VBUS_SENSE;
 
@@ -105,6 +110,13 @@ static void send_info(void)
     memcpy(&p[n], board, board_len);
     n += board_len;
     send(MSG_INFO, p, n);
+}
+
+static void send_setting(uint8_t key, uint8_t result)
+{
+    int16_t v = settings_get(key);
+    const uint8_t p[4] = { key, (uint8_t)(v & 0xFF), (uint8_t)((uint16_t)v >> 8), result };
+    send(MSG_SETTING, p, sizeof p);
 }
 
 static void send_status(uint8_t flags, uint8_t leds)
@@ -222,6 +234,19 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
     case MSG_RELEASE_ALL:
         usb_hid_release_all();
         break;
+
+    case MSG_SETTING_GET:
+        NEED(1);
+        send_setting(p[0], p[0] == SETTING_LED_GPIO || p[0] == SETTING_VBUS_GPIO ? SETTING_OK
+                                                                                 : SETTING_ERR_UNKNOWN);
+        break;
+
+    case MSG_SETTING_SET: {
+        NEED(3);
+        int16_t v = (int16_t)(uint16_t)(p[1] | (p[2] << 8));
+        send_setting(p[0], (uint8_t)settings_set(p[0], v));
+        break;
+    }
 
     default:
         send_error(ERR_UNKNOWN_TYPE, type);

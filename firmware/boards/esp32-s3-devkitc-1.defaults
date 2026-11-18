@@ -1,0 +1,6 @@
+# ESP32-S3-DevKitC-1 and its clones. The LED and VBUS sense pins are board
+# settings the viewer can change (and saves on the board), so this one preset
+# suits v1.0 boards (LED on GPIO48, the default), v1.1 boards (GPIO38), and
+# clones with the LED elsewhere.
+CONFIG_CODEBLUE_BOARD_NAME="ESP32-S3-DevKitC-1"
+CONFIG_CODEBLUE_LED_GPIO=48

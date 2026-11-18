@@ -20,6 +20,7 @@
 #define TS_MOUSE_BOOT    (1u << 3)
 #define TS_REMOTE_WAKEUP (1u << 4)
 #define TS_VBUS_PRESENT  (1u << 5)
+#define TS_ABS_UNREAD    (1u << 6)
 
 void usb_hid_init(void);
 
@@ -41,8 +42,12 @@ void usb_hid_poll(void);
 /* TS_* flags. */
 uint8_t usb_hid_status(void);
 
-/* True if the firmware was built with a VBUS sense pin (CONFIG_CODEBLUE_VBUS_GPIO). */
+/* True if a VBUS sense pin is set (settings.h). */
 bool usb_hid_has_vbus_sense(void);
+
+/* Senses VBUS on `pin` from now on (none for a negative pin), releasing the
+ * old pin. The caller checks the pin is usable. False if it can't be set up. */
+bool usb_hid_set_vbus_gpio(int16_t pin);
 
 /* The target's Num/Caps/Scroll Lock LEDs (bits 0-2). */
 uint8_t usb_hid_kbd_leds(void);
