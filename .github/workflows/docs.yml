@@ -18,7 +18,9 @@
 #
 # After making the repository public: Settings > Pages > Source: GitHub
 # Actions (once). From then on, each push to main that touches the docs, and
-# each published release, publishes the site.
+# each published firmware release, publishes the site. A release run deploys
+# from its tag, so the github-pages environment must allow firmware-v* tags
+# (Settings > Environments > github-pages > Deployment branches and tags).
 name: Docs site
 
 on:
@@ -43,6 +45,11 @@ concurrency:
 jobs:
   build:
     name: Build
+    # Only firmware releases change the site (the installer serves the latest
+    # firmware); viewer releases have nothing to add.
+    if: >-
+      github.event_name != 'release' ||
+      startsWith(github.event.release.tag_name, 'firmware-v')
     runs-on: ubuntu-latest
     steps:
       # A release event checks out the release's tag by default, which may
@@ -70,21 +77,15 @@ jobs:
                    --jq '[.[] | select(.tagName | startswith("firmware-v"))]
                          | sort_by(.publishedAt) | last | .tagName // empty')"
           if [ -z "$tag" ]; then
-            echo "::warning::No published firmware release; the installer buttons won't work."
+            echo "::warning::No published firmware release; the install button won't work."
             exit 0
           fi
           v="${tag#firmware-v}"
           mkdir -p docs/install
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
             --pattern 'codeblue-firmware-*.bin' --dir docs/install
-          # One image for every board since 0.3.0. Releases up to 0.2.0 had one
-          # per board preset; for those, serve the v1.0 image, which suits most
-          # boards. (Drop that fallback once 0.2.0 is far enough back.)
           bin="codeblue-firmware-$v.bin"
           if [ ! -f "docs/install/$bin" ]; then
-            bin="$(cd docs/install && ls codeblue-firmware-"$v"-*v1.0.bin 2>/dev/null | head -n 1)"
-          fi
-          if [ -z "$bin" ] || [ ! -f "docs/install/$bin" ]; then
             echo "::error::$tag has no firmware image the installer can use."
             exit 1
           fi
