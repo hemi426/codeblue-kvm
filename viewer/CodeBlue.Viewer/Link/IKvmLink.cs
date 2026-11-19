@@ -43,6 +43,18 @@ internal interface IKvmLink : IDisposable
     /// <summary>True if the board senses the target's USB power, so TargetStatus.VbusPresent means something.</summary>
     bool SupportsVbusSense { get; }
 
+    /// <summary>True if the board's pin settings can be read and changed (firmware 0.3.0 and later).</summary>
+    bool SupportsSettings { get; }
+
+    /// <summary>Reads a board setting. Fails with TimeoutException if the board doesn't answer.</summary>
+    Task<SettingReply> GetSettingAsync(BoardSetting setting);
+
+    /// <summary>
+    /// Changes a board setting; the board applies it at once and saves it. The
+    /// reply carries the result and the value now in effect, whether or not it changed.
+    /// </summary>
+    Task<SettingReply> SetSettingAsync(BoardSetting setting, short value);
+
     /// <summary>
     /// Whether buttons and the wheel go to the absolute pointer (true) or the
     /// relative mouse (false). Ignored by links without an absolute pointer.
@@ -84,6 +96,32 @@ internal readonly record struct TargetStatus(byte Flags, byte KeyboardLeds)
     public bool NumLock => (KeyboardLeds & 0x01) != 0;
     public bool CapsLock => (KeyboardLeds & 0x02) != 0;
     public bool ScrollLock => (KeyboardLeds & 0x04) != 0;
+}
+
+/// <summary>Board settings (SETTING_GET and SETTING_SET in docs/development/protocol.md).</summary>
+internal enum BoardSetting : byte
+{
+    LedGpio = 1,
+    VbusGpio = 2,
+}
+
+internal enum SettingResult : byte
+{
+    Ok = 0,
+    UnknownSetting = 1,
+    BadPin = 2,
+    Conflict = 3,
+    ApplyFailed = 4,
+}
+
+/// <summary>The board's answer to a setting request: the value in effect, and how the request went.</summary>
+internal readonly record struct SettingReply(BoardSetting Setting, short Value, SettingResult Result)
+{
+    /// <summary>A pin setting's value for "no pin".</summary>
+    public const short None = -1;
+
+    /// <summary>Sent to return a setting to the firmware's build default.</summary>
+    public const short Default = -2;
 }
 
 /// <summary>A board that answered, but not in a way we can use (no firmware, wrong version).</summary>

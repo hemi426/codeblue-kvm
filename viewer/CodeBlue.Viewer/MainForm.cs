@@ -28,7 +28,7 @@ internal sealed class MainForm : Form
     private const long MaxVlcLogBytes = 20L * 1024 * 1024;
 
     // Mouse modes (see "Mouse modes" in docs/development/protocol.md).
-    private const string MouseAuto = "Auto", MouseAbsolute = "Absolute", MouseRelative = "Relative";
+    internal const string MouseAuto = "Auto", MouseAbsolute = "Absolute", MouseRelative = "Relative";
 
     private static readonly string VlcLogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodeBlue", "libvlc.log");
@@ -44,11 +44,9 @@ internal sealed class MainForm : Form
     private readonly VideoView _video;
 
     private readonly FlowLayoutPanel _toolbar;
-    private readonly ComboBox _portBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _mouseBox;
+    private readonly ComboBox _portBox, _deviceBox;
     private readonly CheckBox _videoOnlyBox;
-    private readonly NumericUpDown _cachingBox, _ledBox;
-    private readonly CheckBox _nativeBox;
-    private readonly Button _connectButton, _captureButton, _cadButton;
+    private readonly Button _connectButton, _captureButton, _cadButton, _boardButton;
     // Status bar: the main message on the left, fixed fields on the right.
     private readonly Panel _statusBar;
     private readonly Label _status;
@@ -78,8 +76,6 @@ internal sealed class MainForm : Form
     private readonly HashSet<byte> _held = [];
 
     private readonly System.Windows.Forms.Timer _heartbeatTimer;
-    private readonly System.Windows.Forms.Timer _ledSaveTimer;
-    private bool _syncingLedBox; // set while showing the board's brightness, so it isn't sent back
     private long _uiHeartbeat = Environment.TickCount64;
     private volatile bool _watchdogTripped;
     private volatile bool _closing;
@@ -143,31 +139,12 @@ internal sealed class MainForm : Form
         _videoOnlyBox = new CheckBox { Text = "Video only", AutoSize = true, Margin = new Padding(10, 6, 2, 2) };
         _videoOnlyBox.CheckedChanged += (_, _) => UpdateUi();
         _deviceBox = MakeCombo(210, editable: true);
-        _formatBox = MakeCombo(80);
-        _formatBox.Items.AddRange(CaptureOptions.Formats);
-        _sizeBox = MakeCombo(110);
-        _sizeBox.Items.AddRange(CaptureOptions.Sizes);
-        _fpsBox = MakeCombo(70);
-        _fpsBox.Items.AddRange(CaptureOptions.FrameRates);
-        _cachingBox = new NumericUpDown
-        {
-            Minimum = 0, Maximum = 2000, Increment = 10, Width = 70,
-            Margin = new Padding(2, 4, 2, 4),
-        };
-        _ledBox = new NumericUpDown
-        {
-            Minimum = 0, Maximum = 100, Increment = 5, Width = 60,
-            Margin = new Padding(2, 4, 2, 4),
-        };
         _captureButton = MakeButton("Capture", (_, _) => StartCapture());
         _cadButton = MakeButton("Ctrl+Alt+Del", (_, _) => SendCtrlAltDel());
         var snapshotButton = MakeButton("Snapshot", (_, _) => TakeSnapshot());
         var fullscreenButton = MakeButton("Full screen", (_, _) => ToggleFullscreen());
-        _nativeBox = new CheckBox { Text = "1:1 pixels", AutoSize = true, Margin = new Padding(10, 6, 2, 2) };
-        _nativeBox.CheckedChanged += (_, _) => { ApplyScale(); if (_captured) ClipCursorToVideo(); };
-        _mouseBox = MakeCombo(100);
-        _mouseBox.Items.AddRange([MouseAuto, MouseAbsolute, MouseRelative]);
-        _mouseBox.SelectedIndexChanged += (_, _) => { ApplyMouseMode(); UpdateStatusFields(); };
+        _boardButton = MakeButton("Board settings...", (_, _) => ShowBoardSettings());
+        var optionsButton = MakeButton("Viewer options...", (_, _) => ShowViewerOptions());
 
         _toolbar = new FlowLayoutPanel
         {
@@ -181,14 +158,8 @@ internal sealed class MainForm : Form
             _connectButton,
             MakeLabel("Port"), _portBox, refreshButton, _videoOnlyBox,
             MakeLabel("Video"), _deviceBox,
-            MakeLabel("Format"), _formatBox,
-            MakeLabel("Size"), _sizeBox,
-            MakeLabel("FPS"), _fpsBox,
-            MakeLabel("Cache ms"), _cachingBox,
-            MakeLabel("LED %"), _ledBox,
-            MakeLabel("Mouse"), _mouseBox,
-            _nativeBox,
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
+            _boardButton, optionsButton,
         ]);
 
         int statusHeight = Font.Height + 12;
@@ -250,28 +221,7 @@ internal sealed class MainForm : Form
         RefreshPorts();
         RefreshDevices();
         _videoOnlyBox.Checked = _settings.VideoOnly;
-        SelectItem(_formatBox, _settings.Format);
-        SelectItem(_sizeBox, _settings.Size);
-        SelectItem(_fpsBox, _settings.Fps);
-        _cachingBox.Value = Math.Clamp(_settings.CachingMs, 0, 2000);
-        _ledBox.Value = Math.Clamp(_settings.LedBrightnessPercent, 0, 100);
-        _nativeBox.Checked = _settings.NativeScale;
-        SelectItem(_mouseBox, _settings.MouseMode); // falls back to the first item, Auto
-        // While the value changes, preview it on the board; save it there once, a
-        // second after the last change, so the board's flash is written once per adjustment.
-        _ledSaveTimer = new System.Windows.Forms.Timer { Interval = 1000 };
-        _ledSaveTimer.Tick += (_, _) =>
-        {
-            _ledSaveTimer.Stop();
-            _link?.SetLedBrightness((int)_ledBox.Value, persist: true);
-        };
-        _ledBox.ValueChanged += (_, _) =>
-        {
-            if (_syncingLedBox || _link is null) return;
-            _link.SetLedBrightness((int)_ledBox.Value, persist: false);
-            _ledSaveTimer.Stop();
-            _ledSaveTimer.Start();
-        };
+        UpdateStatusFields();
 
         Deactivate += (_, _) => StopCapture();
         FormClosing += (_, _) => { Disconnect(); SaveSettings(); };
@@ -362,12 +312,12 @@ internal sealed class MainForm : Form
     {
         bool running = _videoRunning || _link is not null;
         _connectButton.Text = running ? "Disconnect" : "Connect";
-        foreach (Control c in new Control[] { _videoOnlyBox, _deviceBox, _formatBox, _sizeBox, _fpsBox, _cachingBox })
-            c.Enabled = !running;
+        _videoOnlyBox.Enabled = _deviceBox.Enabled = !running;
         _portBox.Enabled = !running && !_videoOnlyBox.Checked;
 
         _captureButton.Enabled = _link is not null && !_captured;
         _cadButton.Enabled = _link is not null;
+        _boardButton.Enabled = _link is not null;
         _banner.Visible = _captured;
 
         SetStatus(_captured
@@ -401,7 +351,7 @@ internal sealed class MainForm : Form
     /// <summary>The mouse mode and lock-key fields at the right of the status bar.</summary>
     private void UpdateStatusFields()
     {
-        string setting = _mouseBox.SelectedItem as string ?? MouseAuto;
+        string setting = _settings.MouseMode;
         if (_link is null)
         {
             _mouseField.Text = $"Mouse: {setting}";
@@ -501,13 +451,6 @@ internal sealed class MainForm : Form
         _settings.SerialPort = _portBox.SelectedItem as string ?? _settings.SerialPort;
         _settings.VideoDevice = _deviceBox.Text.Length > 0 ? _deviceBox.Text : _settings.VideoDevice;
         _settings.VideoOnly = _videoOnlyBox.Checked;
-        _settings.Format = _formatBox.SelectedItem as string ?? CaptureOptions.Auto;
-        _settings.Size = _sizeBox.SelectedItem as string ?? CaptureOptions.Auto;
-        _settings.Fps = _fpsBox.SelectedItem as string ?? CaptureOptions.Auto;
-        _settings.CachingMs = (int)_cachingBox.Value;
-        _settings.LedBrightnessPercent = (int)_ledBox.Value;
-        _settings.NativeScale = _nativeBox.Checked;
-        _settings.MouseMode = _mouseBox.SelectedItem as string ?? MouseAuto;
         _settings.Save();
     }
 
@@ -530,10 +473,10 @@ internal sealed class MainForm : Form
 
         var options = new CaptureOptions(
             device,
-            _formatBox.SelectedItem as string ?? CaptureOptions.Auto,
-            _sizeBox.SelectedItem as string ?? CaptureOptions.Auto,
-            _fpsBox.SelectedItem as string ?? CaptureOptions.Auto,
-            (int)_cachingBox.Value);
+            _settings.Format,
+            _settings.Size,
+            _settings.Fps,
+            Math.Clamp(_settings.CachingMs, 0, 2000));
 
         // Always point libVLC at the video control's current window handle.
         _player.Hwnd = _video.Handle;
@@ -598,15 +541,9 @@ internal sealed class MainForm : Form
 
         // The board is the source of truth for its brightness, if it has one.
         if (link.LedBrightness is int boardPercent)
-        {
-            _syncingLedBox = true;
-            _ledBox.Value = Math.Clamp(boardPercent, 0, 100);
-            _syncingLedBox = false;
-        }
+            _settings.LedBrightnessPercent = Math.Clamp(boardPercent, 0, 100);
         else
-        {
-            link.SetLedBrightness((int)_ledBox.Value, persist: false);
-        }
+            link.SetLedBrightness(_settings.LedBrightnessPercent, persist: false);
         SetLed(LedConnected);
     }
 
@@ -616,11 +553,6 @@ internal sealed class MainForm : Form
         StopCapture();
         if (_link is not null)
         {
-            if (_ledSaveTimer.Enabled)
-            {
-                _ledSaveTimer.Stop();
-                _link.SetLedBrightness((int)_ledBox.Value, persist: true);
-            }
             _link.ReleaseAll();
             SetLed(LedIdle);
             _link.Dispose(); // drains the queue, so the two commands above go out first
@@ -665,9 +597,42 @@ internal sealed class MainForm : Form
     /// centre. Otherwise the picture is scaled to fit, which softens thin fonts
     /// when the scale isn't a whole number (1920 to 2560 is 1.33x).
     /// </summary>
-    private void ApplyScale() => _player.Scale = _nativeBox.Checked ? 1f : 0f;
+    private void ApplyScale() => _player.Scale = _settings.NativeScale ? 1f : 0f;
 
-    private void ToggleNativeScale() => _nativeBox.Checked = !_nativeBox.Checked;
+    private void ToggleNativeScale()
+    {
+        _settings.NativeScale = !_settings.NativeScale;
+        ApplyScale();
+        if (_captured) ClipCursorToVideo();
+        _settings.Save();
+    }
+
+    // ---------------------------------------------------------------- Dialogs
+
+    private void ShowBoardSettings()
+    {
+        if (_link is not { } link) return;
+        using var dialog = new BoardSettingsForm(this, link, _settings.BoardPreset);
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _settings.LedBrightnessPercent = dialog.LedPercent;
+            _settings.BoardPreset = dialog.PresetName ?? _settings.BoardPreset;
+            _settings.Save();
+        }
+        UpdateUi(); // a new VBUS pin changes what the target's status means
+    }
+
+    private void ShowViewerOptions()
+    {
+        using var dialog = new ViewerOptionsForm(this, _settings, _videoRunning);
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        _settings.Save();
+        // Video settings wait for the next Connect; these apply now.
+        ApplyScale();
+        ApplyMouseMode();
+        if (_captured) ClipCursorToVideo();
+        UpdateStatusFields();
+    }
 
     /// <summary>Sends a full-scale status colour; the link applies the LED % setting.</summary>
     private void SetLed((byte R, byte G, byte B) color) => _link?.SetStatusLed(color.R, color.G, color.B);
@@ -853,7 +818,7 @@ internal sealed class MainForm : Form
     {
         var c = _video.ClientRectangle;
         if (_videoWidth == 0 || _videoHeight == 0 || c.Width == 0 || c.Height == 0) return c;
-        double scale = _nativeBox.Checked ? 1.0 : Math.Min((double)c.Width / _videoWidth, (double)c.Height / _videoHeight);
+        double scale = _settings.NativeScale ? 1.0 : Math.Min((double)c.Width / _videoWidth, (double)c.Height / _videoHeight);
         int w = (int)Math.Round(_videoWidth * scale), h = (int)Math.Round(_videoHeight * scale);
         return new Rectangle((c.Width - w) / 2, (c.Height - h) / 2, w, h);
     }
@@ -879,7 +844,7 @@ internal sealed class MainForm : Form
     private bool WantAbsolute()
     {
         if (_link is not { SupportsAbsolute: true } link) return false;
-        return (_mouseBox.SelectedItem as string) switch
+        return _settings.MouseMode switch
         {
             MouseAbsolute => true,
             MouseRelative => false,
@@ -1219,7 +1184,6 @@ internal sealed class MainForm : Form
     {
         _closing = true;
         _heartbeatTimer.Dispose();
-        _ledSaveTimer.Dispose();
         _reconnectTimer.Dispose();
         _video.MediaPlayer = null;
         _player.Dispose();

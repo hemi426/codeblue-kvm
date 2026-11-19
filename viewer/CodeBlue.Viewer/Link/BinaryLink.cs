@@ -29,7 +29,8 @@ internal sealed class BinaryLink : IKvmLink
         public const byte Hello = 0x01, Heartbeat = 0x02, SessionConfig = 0x03;
         public const byte Keyboard = 0x10, MouseAbs = 0x20, MouseRel = 0x21;
         public const byte Led = 0x30, LedBrightness = 0x31, ReleaseAll = 0x40;
-        public const byte Info = 0x81, DeviceHeartbeat = 0x82, TargetStatus = 0x90, Error = 0xE0;
+        public const byte SettingGet = 0x50, SettingSet = 0x51;
+        public const byte Info = 0x81, DeviceHeartbeat = 0x82, TargetStatus = 0x90, Setting = 0xA0, Error = 0xE0;
     }
 
     private readonly SerialTransport _transport;
@@ -52,11 +53,17 @@ internal sealed class BinaryLink : IKvmLink
 
     private TargetStatus? _status;
 
+    // Setting requests waiting for the board's answer, oldest first: the board
+    // answers each request in order, so the reply belongs to the oldest one.
+    private const int SettingTimeoutMs = 2000; // a change is saved to flash before the reply
+    private readonly Queue<TaskCompletionSource<SettingReply>> _settingWaiters = new();
+
     public string ProtocolName { get; private set; } = "CodeBlue";
     public TargetStatus? TargetStatus => _status;
     public int? LedBrightness { get; private set; }
     public bool SupportsAbsolute { get; private set; }
     public bool SupportsVbusSense { get; private set; }
+    public bool SupportsSettings { get; private set; }
 
     public bool AbsoluteMouse
     {
@@ -160,6 +167,7 @@ internal sealed class BinaryLink : IKvmLink
                 ushort caps = BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5));
                 SupportsAbsolute = (caps & 0x0001) != 0;
                 SupportsVbusSense = (caps & 0x0008) != 0;
+                SupportsSettings = (caps & 0x0010) != 0;
                 Diagnostic?.Invoke($"board: {ProtocolName}, protocol {p[0]}.{p[1]}, " +
                                    $"capabilities 0x{caps:X4}, LED {p[7]}%");
                 _gotInfo.Set();
@@ -172,6 +180,18 @@ internal sealed class BinaryLink : IKvmLink
                     _status = status;
                     TargetStatusChanged?.Invoke(status);
                 }
+                break;
+
+            case Msg.Setting when p.Length >= 4:
+                var reply = new SettingReply((BoardSetting)p[0], BinaryPrimitives.ReadInt16LittleEndian(p.AsSpan(1)),
+                                             (SettingResult)p[3]);
+                // INFO only reports VBUS sense at connect; the reply has the pin in effect now.
+                if (reply.Setting == BoardSetting.VbusGpio && reply.Result != SettingResult.UnknownSetting)
+                    SupportsVbusSense = reply.Value >= 0;
+                Diagnostic?.Invoke($"board setting {reply.Setting} = {reply.Value} ({reply.Result})");
+                TaskCompletionSource<SettingReply>? waiter;
+                lock (_settingWaiters) _settingWaiters.TryDequeue(out waiter);
+                waiter?.TrySetResult(reply);
                 break;
 
             case Msg.DeviceHeartbeat:
@@ -197,7 +217,17 @@ internal sealed class BinaryLink : IKvmLink
     private void Fault(Exception ex)
     {
         if (Interlocked.Exchange(ref _faulted, 1) == 0)
+        {
+            FailSettingWaiters(ex);
             Faulted?.Invoke(ex);
+        }
+    }
+
+    private void FailSettingWaiters(Exception ex)
+    {
+        lock (_settingWaiters)
+            while (_settingWaiters.TryDequeue(out var waiter))
+                waiter.TrySetException(ex);
     }
 
     // ---------------------------------------------------------------- Send
@@ -359,8 +389,44 @@ internal sealed class BinaryLink : IKvmLink
         Send(Msg.LedBrightness, [(byte)LedBrightness.Value, persist ? (byte)1 : (byte)0]);
     }
 
+    public Task<SettingReply> GetSettingAsync(BoardSetting setting) =>
+        SettingRequest(Msg.SettingGet, [(byte)setting]);
+
+    public Task<SettingReply> SetSettingAsync(BoardSetting setting, short value)
+    {
+        Span<byte> p = stackalloc byte[3];
+        p[0] = (byte)setting;
+        BinaryPrimitives.WriteInt16LittleEndian(p[1..], value);
+        return SettingRequest(Msg.SettingSet, p.ToArray());
+    }
+
+    private async Task<SettingReply> SettingRequest(byte type, byte[] payload)
+    {
+        if (!SupportsSettings)
+            throw new KvmLinkException("This firmware has no board settings; update it to 0.3.0 or later.");
+        var waiter = new TaskCompletionSource<SettingReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_settingWaiters)
+        {
+            _settingWaiters.Enqueue(waiter);
+            Send(type, payload); // inside the lock, so the queue and the wire stay in the same order
+        }
+        if (await Task.WhenAny(waiter.Task, Task.Delay(SettingTimeoutMs)) != waiter.Task)
+        {
+            // Lost: drop it, so the next reply isn't taken for this one's.
+            lock (_settingWaiters)
+            {
+                var rest = _settingWaiters.Where(w => w != waiter).ToList();
+                _settingWaiters.Clear();
+                foreach (var w in rest) _settingWaiters.Enqueue(w);
+            }
+            throw new TimeoutException("The board didn't answer.");
+        }
+        return await waiter.Task;
+    }
+
     public void Dispose()
     {
+        FailSettingWaiters(new ObjectDisposedException(nameof(BinaryLink)));
         _motionTimer.Dispose();
         _transport.Dispose();
         _gotInfo.Dispose();
