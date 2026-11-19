@@ -14,10 +14,12 @@ internal static class VideoDevices
         var names = new List<string>();
         try
         {
+            // Windows keeps records of unplugged devices too; Present = TRUE leaves those out.
             using var searcher = new ManagementObjectSearcher(
-                "SELECT Name FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image'");
+                "SELECT Name, Present FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image'");
             foreach (var obj in searcher.Get())
             {
+                if (obj["Present"] is false) continue;
                 if (obj["Name"] is string name && !names.Contains(name))
                     names.Add(name);
             }
