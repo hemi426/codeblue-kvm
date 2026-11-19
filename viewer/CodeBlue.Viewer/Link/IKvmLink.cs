@@ -78,6 +78,8 @@ internal readonly record struct TargetStatus(byte Flags, byte KeyboardLeds)
     public bool MouseBoot => (Flags & 0x08) != 0;
     public bool RemoteWakeup => (Flags & 0x10) != 0;
     public bool VbusPresent => (Flags & 0x20) != 0;
+    /// <summary>The target hasn't collected an absolute pointer report for a while (firmware 0.3.0 and later).</summary>
+    public bool AbsoluteUnread => (Flags & 0x40) != 0;
 
     public bool NumLock => (KeyboardLeds & 0x01) != 0;
     public bool CapsLock => (KeyboardLeds & 0x02) != 0;

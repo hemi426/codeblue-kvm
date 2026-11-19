@@ -49,7 +49,15 @@ internal sealed class MainForm : Form
     private readonly NumericUpDown _cachingBox, _ledBox;
     private readonly CheckBox _nativeBox;
     private readonly Button _connectButton, _captureButton, _cadButton;
+    // Status bar: the main message on the left, fixed fields on the right.
+    private readonly Panel _statusBar;
     private readonly Label _status;
+    private readonly Label _mouseField, _numField, _capsField, _scrollField;
+    private readonly ToolTip _statusTips = new();
+    private readonly System.Windows.Forms.Timer _transientTimer;
+    private string _baseStatus = ""; // what the main message shows when no transient message is up
+    private Font? _boldFont;
+    private Font BoldFont => _boldFont ??= new Font(Font, FontStyle.Bold);
     private readonly Label _banner;
 
     private IKvmLink? _link;
@@ -159,7 +167,7 @@ internal sealed class MainForm : Form
         _nativeBox.CheckedChanged += (_, _) => { ApplyScale(); if (_captured) ClipCursorToVideo(); };
         _mouseBox = MakeCombo(100);
         _mouseBox.Items.AddRange([MouseAuto, MouseAbsolute, MouseRelative]);
-        _mouseBox.SelectedIndexChanged += (_, _) => ApplyMouseMode();
+        _mouseBox.SelectedIndexChanged += (_, _) => { ApplyMouseMode(); UpdateStatusFields(); };
 
         _toolbar = new FlowLayoutPanel
         {
@@ -183,14 +191,41 @@ internal sealed class MainForm : Form
             _captureButton, _cadButton, snapshotButton, fullscreenButton,
         ]);
 
+        int statusHeight = Font.Height + 12;
         _status = new Label
         {
-            Dock = DockStyle.Bottom,
+            Dock = DockStyle.Fill,
             AutoSize = false,
-            Height = Font.Height + 12,
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(6, 0, 6, 0),
             AutoEllipsis = true,
+        };
+        // Fixed widths (sized for the bold, widest text), so nothing shifts as fields light up.
+        _mouseField = MakeStatusField("Mouse: Absolute (Auto)", statusHeight);
+        _numField = MakeStatusField("NUM", statusHeight);
+        _capsField = MakeStatusField("CAPS", statusHeight);
+        _scrollField = MakeStatusField("SCRL", statusHeight);
+        _statusTips.SetToolTip(_numField, "Num Lock on the target");
+        _statusTips.SetToolTip(_capsField, "Caps Lock on the target");
+        _statusTips.SetToolTip(_scrollField, "Scroll Lock on the target");
+        var fields = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            WrapContents = false,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        fields.Controls.AddRange([_mouseField, _numField, _capsField, _scrollField]);
+        _statusBar = new Panel { Dock = DockStyle.Bottom, Height = statusHeight };
+        _statusBar.Controls.Add(_status); // fills what the fields leave
+        _statusBar.Controls.Add(fields);
+        // Transient messages (a saved snapshot, say) give way to the normal status after a while.
+        _transientTimer = new System.Windows.Forms.Timer { Interval = 5000 };
+        _transientTimer.Tick += (_, _) =>
+        {
+            _transientTimer.Stop();
+            _status.Text = _baseStatus;
         };
         _banner = new Label
         {
@@ -210,7 +245,7 @@ internal sealed class MainForm : Form
         Controls.Add(_video);
         Controls.Add(_banner);
         Controls.Add(_toolbar);
-        Controls.Add(_status);
+        Controls.Add(_statusBar);
 
         RefreshPorts();
         RefreshDevices();
@@ -344,6 +379,69 @@ internal sealed class MainForm : Form
                         ? $"Showing {_deviceBox.Text}. Lost the board on {_reconnectPort}: {_reconnectReason}. Reconnecting..."
                         : $"Showing {_deviceBox.Text}. No keyboard/mouse link."
                     : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}.{TargetText()} Click Capture (or press Ctrl+Alt+C) to take control.");
+        UpdateStatusFields();
+    }
+
+    private Label MakeStatusField(string widest, int height)
+    {
+        var field = new Label
+        {
+            AutoSize = false,
+            Size = new Size(TextRenderer.MeasureText(widest, BoldFont).Width + 16, height),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Margin = Padding.Empty,
+            Text = widest,
+        };
+        // A thin divider on the left, like a classic status bar pane.
+        field.Paint += (_, e) =>
+            e.Graphics.DrawLine(SystemPens.ControlDark, 0, 4, 0, field.Height - 5);
+        return field;
+    }
+
+    /// <summary>The mouse mode and lock-key fields at the right of the status bar.</summary>
+    private void UpdateStatusFields()
+    {
+        string setting = _mouseBox.SelectedItem as string ?? MouseAuto;
+        if (_link is null)
+        {
+            _mouseField.Text = $"Mouse: {setting}";
+            _statusTips.SetToolTip(_mouseField, "Mouse mode, once connected");
+        }
+        else
+        {
+            bool absolute = WantAbsolute();
+            string mode = absolute ? MouseAbsolute : MouseRelative;
+            _mouseField.Text = setting == MouseAuto ? $"Mouse: {mode} (Auto)" : $"Mouse: {mode}";
+            _statusTips.SetToolTip(_mouseField, MouseModeReason(setting, absolute));
+        }
+
+        // Lock keys only mean something while the target has the keyboard awake.
+        var t = _link?.TargetStatus is { Mounted: true, Suspended: false } s ? s : default;
+        SetLockField(_numField, t.NumLock);
+        SetLockField(_capsField, t.CapsLock);
+        SetLockField(_scrollField, t.ScrollLock);
+    }
+
+    private string MouseModeReason(string setting, bool absolute)
+    {
+        if (_link is { SupportsAbsolute: false })
+            return "Relative: this board has no absolute pointer";
+        if (setting != MouseAuto)
+            return $"{setting}: chosen in the Mouse setting";
+        if (absolute)
+            return "Absolute (Auto): the target uses the absolute pointer";
+        return _link?.TargetStatus switch
+        {
+            { MouseBoot: true } => "Relative (Auto): the target asked for a basic boot mouse",
+            { AbsoluteUnread: true } => "Relative (Auto): the target isn't reading the absolute pointer",
+            _ => "Relative (Auto)",
+        };
+    }
+
+    private void SetLockField(Label field, bool lit)
+    {
+        field.Font = lit ? BoldFont : Font;
+        field.ForeColor = lit ? SystemColors.ControlText : SystemColors.GrayText;
     }
 
     /// <summary>The target's state for the status bar, or empty if the link can't tell.</summary>
@@ -362,11 +460,7 @@ internal sealed class MainForm : Form
                 : _link.SupportsVbusSense
                     ? " Target: asleep; a keypress may wake it."
                     : " Target: asleep or disconnected; a keypress may wake it.";
-        var lit = new List<string>();
-        if (t.NumLock) lit.Add("Num");
-        if (t.CapsLock) lit.Add("Caps");
-        if (t.ScrollLock) lit.Add("Scroll");
-        return lit.Count == 0 ? " Target: connected." : $" Target: connected, {string.Join(" ", lit)} Lock on.";
+        return " Target: connected."; // its lock keys have their own fields
     }
 
     private void OnTargetStatus(TargetStatus status)
@@ -376,7 +470,7 @@ internal sealed class MainForm : Form
         // rebooting target does that several times, and "capture, hold F2,
         // reboot" has to work. The board delivers held keys again as soon as
         // the target picks it back up.
-        ApplyMouseMode(); // Auto follows the target's boot-mouse request
+        ApplyMouseMode(); // Auto follows the target (boot mouse, or an unread absolute pointer)
         UpdateUi();
     }
 
@@ -384,7 +478,20 @@ internal sealed class MainForm : Form
     // informational version; the title shows only the release number.
     private static string ViewerVersion => Application.ProductVersion.Split('+')[0];
 
-    private void SetStatus(string text) => _status.Text = text;
+    /// <summary>Sets the normal status message (shown again after any transient one).</summary>
+    private void SetStatus(string text)
+    {
+        _baseStatus = text;
+        if (!_transientTimer.Enabled) _status.Text = text;
+    }
+
+    /// <summary>Shows a message for a few seconds, then the normal status again.</summary>
+    private void ShowTransient(string text)
+    {
+        _status.Text = text;
+        _transientTimer.Stop();
+        _transientTimer.Start();
+    }
 
     private void ShowError(string message) =>
         MessageBox.Show(this, message, "CodeBlue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -777,8 +884,11 @@ internal sealed class MainForm : Form
             MouseAbsolute => true,
             MouseRelative => false,
             // Auto: absolute, unless the target put the mouse in boot protocol
-            // (typically BIOS setup screens), which only understands relative.
-            _ => link.TargetStatus is not { MouseBoot: true },
+            // (typically BIOS setup screens), which only understands relative,
+            // or never reads the absolute pointer (firmware 0.3.0 and later
+            // report that). Some firmware tools read it and ignore it, which
+            // no device can detect; the status bar shows the mode for those.
+            _ => link.TargetStatus is not ({ MouseBoot: true } or { AbsoluteUnread: true }),
         };
     }
 
@@ -972,7 +1082,7 @@ internal sealed class MainForm : Form
             _savedState = WindowState;
             _savedBounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             _toolbar.Visible = false;
-            _status.Visible = false;
+            _statusBar.Visible = false;
             FormBorderStyle = FormBorderStyle.None;
             WindowState = FormWindowState.Normal;
             Bounds = Screen.FromControl(this).Bounds;
@@ -984,7 +1094,7 @@ internal sealed class MainForm : Form
             Bounds = _savedBounds;
             WindowState = _savedState;
             _toolbar.Visible = true;
-            _status.Visible = true;
+            _statusBar.Visible = true;
             _fullscreen = false;
         }
         if (_captured) PostToUi(() => ClipCursorToVideo());
@@ -996,9 +1106,9 @@ internal sealed class MainForm : Form
         string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "CodeBlue");
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, $"codeblue-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-        _status.Text = _player.TakeSnapshot(0, path, 0, 0)
+        ShowTransient(_player.TakeSnapshot(0, path, 0, 0)
             ? $"Snapshot saved: {path}"
-            : "Snapshot failed.";
+            : "Snapshot failed.");
     }
 
     // ---------------------------------------------------------------- Watchdog

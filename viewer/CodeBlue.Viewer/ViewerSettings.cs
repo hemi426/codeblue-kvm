@@ -17,7 +17,7 @@ internal sealed class ViewerSettings
     public string Format { get; set; } = "MJPG";
     public string Size { get; set; } = "1920x1080";
     public string Fps { get; set; } = "30";
-    public int CachingMs { get; set; } = 50;
+    public int CachingMs { get; set; } = 40;
     public int LedBrightnessPercent { get; set; } = 5;
     public bool NativeScale { get; set; }
     public string MouseMode { get; set; } = "Auto";
