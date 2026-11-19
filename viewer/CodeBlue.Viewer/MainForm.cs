@@ -5,7 +5,6 @@ using CodeBlue.Viewer.Link;
 using CodeBlue.Viewer.Native;
 using CodeBlue.Viewer.Video;
 using LibVLCSharp.Shared;
-using LibVLCSharp.WinForms;
 
 namespace CodeBlue.Viewer;
 
@@ -40,8 +39,13 @@ internal sealed class MainForm : Form
     private readonly ViewerSettings _settings = ViewerSettings.Load();
 
     private readonly LibVLC _libVlc;
-    private readonly MediaPlayer _player;
-    private readonly VideoView _video;
+    private readonly Panel _video; // holds each session's drawing window
+    private volatile VideoSession? _session; // the capture being shown, if any (read by the fps timer)
+    private readonly List<VideoSession> _stopping = []; // stopped sessions whose players haven't let go yet
+    private readonly HashSet<VideoSession> _stuck = []; // ...of those, the ones stuck for a while (they hold the dongle)
+    private bool _connecting;
+    private readonly System.Threading.Timer _fpsTimer;
+    private string? _fpsText;
 
     private readonly FlowLayoutPanel _toolbar;
     private readonly ComboBox _portBox, _deviceBox;
@@ -50,7 +54,7 @@ internal sealed class MainForm : Form
     // Status bar: the main message on the left, fixed fields on the right.
     private readonly Panel _statusBar;
     private readonly Label _status;
-    private readonly Label _mouseField, _numField, _capsField, _scrollField;
+    private readonly Label _fpsField, _mouseField, _numField, _capsField, _scrollField;
     private readonly ToolTip _statusTips = new();
     private readonly System.Windows.Forms.Timer _transientTimer;
     private string _baseStatus = ""; // what the main message shows when no transient message is up
@@ -108,29 +112,8 @@ internal sealed class MainForm : Form
         // wouldn't pick by itself (and the real ones aren't shipped).
         _libVlc = new LibVLC("--no-video-title-show", "--no-snapshot-preview", "--aout=adummy", "--verbose=2");
         OpenVlcLog();
-        _player = new MediaPlayer(_libVlc)
-        {
-            // Input belongs to us, not to VLC's own hotkeys and mouse handling.
-            EnableKeyInput = false,
-            EnableMouseInput = false,
-        };
-        _player.Playing += (_, _) => WriteLog("player: playing");
-        _player.Vout += (_, e) =>
-        {
-            WriteLog($"player: video outputs = {e.Count}");
-            // Not from inside libVLC's event callback: calling back into libVLC there can deadlock.
-            if (e.Count > 0) PostToUi(ApplySquarePixels);
-        };
-        _player.EncounteredError += (_, _) =>
-        {
-            WriteLog("player: encountered error");
-            PostToUi(() => SetStatus(_captureModeUnsupported
-                ? UnsupportedModeText()
-                : $"Video playback failed. Details in {VlcLogPath}"));
-        };
-
-        // The player is attached in OnShown, once this control has its final window handle.
-        _video = new VideoView { Dock = DockStyle.Fill, BackColor = Color.Black };
+        // Each Connect makes its own player (see VideoSession); this is where they draw.
+        _video = new Panel { Dock = DockStyle.Fill, BackColor = Color.Black };
         _video.Resize += (_, _) => { if (_captured) ClipCursorToVideo(); };
 
         _connectButton = MakeButton("Connect", (_, _) => ToggleConnect());
@@ -172,6 +155,8 @@ internal sealed class MainForm : Form
             AutoEllipsis = true,
         };
         // Fixed widths (sized for the bold, widest text), so nothing shifts as fields light up.
+        _fpsField = MakeStatusField("Video off", statusHeight);
+        _statusTips.SetToolTip(_fpsField, "Frames per second shown from the capture dongle");
         _mouseField = MakeStatusField("Mouse: Absolute (Auto)", statusHeight);
         _numField = MakeStatusField("NUM", statusHeight);
         _capsField = MakeStatusField("CAPS", statusHeight);
@@ -187,7 +172,7 @@ internal sealed class MainForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
-        fields.Controls.AddRange([_mouseField, _numField, _capsField, _scrollField]);
+        fields.Controls.AddRange([_fpsField, _mouseField, _numField, _capsField, _scrollField]);
         _statusBar = new Panel { Dock = DockStyle.Bottom, Height = statusHeight };
         _statusBar.Controls.Add(_status); // fills what the fields leave
         _statusBar.Controls.Add(fields);
@@ -246,13 +231,10 @@ internal sealed class MainForm : Form
         _reconnectTimer.Tick += (_, _) => TryReconnect();
         new Thread(WatchdogLoop) { IsBackground = true, Name = "CodeBlue capture watchdog" }.Start();
 
-        UpdateUi();
-    }
+        // Frame rate, read off the UI thread: libVLC calls are what we can't trust to return.
+        _fpsTimer = new System.Threading.Timer(_ => SampleFrameRate(), null, 500, 500);
 
-    protected override void OnShown(EventArgs e)
-    {
-        base.OnShown(e);
-        _video.MediaPlayer = _player;
+        UpdateUi();
     }
 
     // ---------------------------------------------------------------- UI helpers
@@ -320,7 +302,9 @@ internal sealed class MainForm : Form
         _boardButton.Enabled = _link is not null;
         _banner.Visible = _captured;
 
-        SetStatus(_captured
+        // A stuck player holds the dongle until it's unplugged; say so above all else.
+        string stuck = _stuck.Count > 0 ? "Video stuck: unplug the dongle and plug it back in. " : "";
+        SetStatus(stuck + (_captured
             ? $"Captured.{TargetText()} Release: Ctrl+Alt. Full screen: Ctrl+Alt+Enter. 1:1 pixels: Ctrl+Alt+1. Snapshot: Ctrl+Alt+S."
             : !running
                 ? "Not connected. F11: full screen, Ctrl+Alt+S or F12: snapshot, Ctrl+Alt+1: 1:1 pixels, Ctrl+Alt+C: capture."
@@ -328,7 +312,7 @@ internal sealed class MainForm : Form
                     ? _reconnectPort is not null
                         ? $"Showing {_deviceBox.Text}. Lost the board on {_reconnectPort}: {_reconnectReason}. Reconnecting..."
                         : $"Showing {_deviceBox.Text}. No keyboard/mouse link."
-                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}.{TargetText()} Click Capture (or press Ctrl+Alt+C) to take control.");
+                    : $"Showing {_deviceBox.Text}. Link: {_link.ProtocolName} on {_linkPort}.{TargetText()} Click Capture (or press Ctrl+Alt+C) to take control."));
         UpdateStatusFields();
     }
 
@@ -458,11 +442,12 @@ internal sealed class MainForm : Form
 
     private void ToggleConnect()
     {
+        if (_connecting) return;
         if (_videoRunning || _link is not null) Disconnect();
         else Connect();
     }
 
-    private void Connect()
+    private async void Connect()
     {
         string device = _deviceBox.Text.Trim();
         if (device.Length == 0)
@@ -478,17 +463,42 @@ internal sealed class MainForm : Form
             _settings.Fps,
             Math.Clamp(_settings.CachingMs, 0, 2000));
 
-        // Always point libVLC at the video control's current window handle.
-        _player.Hwnd = _video.Handle;
-        _player.AspectRatio = null; // back to automatic until ApplySquarePixels sees the new stream
+        // A player that's still stopping may still hold the dongle; give it a moment.
+        if (_stopping.Count > 0)
+        {
+            _connecting = true;
+            _connectButton.Enabled = false;
+            SetStatus("Waiting for the last video to stop...");
+            await Task.WhenAny(Task.WhenAll(_stopping.Select(s => s.Stopped)), Task.Delay(3000));
+            _connecting = false;
+            _connectButton.Enabled = true;
+            if (IsDisposed || _closing) return;
+            if (_stopping.Count > 0)
+                WriteLog($"codeblue: {_stopping.Count} earlier player(s) still stopping; starting a new one anyway");
+        }
 
         string[] vlcOptions = options.ToVlcOptions();
         _captureModeUnsupported = false;
         _lastCaptureOptions = options;
         WriteLog($"codeblue: opening dshow:// {string.Join(' ', vlcOptions)}");
-        bool started;
-        using (var media = new Media(_libVlc, "dshow://", FromType.FromLocation, vlcOptions))
-            started = _player.Play(media);
+        var session = new VideoSession(_libVlc, _video, vlcOptions);
+        session.Player.Playing += (_, _) => WriteLog("player: playing");
+        session.Player.Vout += (_, e) =>
+        {
+            WriteLog($"player: video outputs = {e.Count}");
+            // Not from inside libVLC's event callback: calling back into libVLC there can deadlock.
+            if (e.Count > 0) PostToUi(() => { if (_session == session) ApplySquarePixels(); });
+        };
+        session.Player.EncounteredError += (_, _) =>
+        {
+            WriteLog("player: encountered error");
+            PostToUi(() =>
+            {
+                if (_session == session) SetStatus(VideoFailedText());
+            });
+        };
+        _session = session;
+        bool started = session.Play();
         WriteLog($"codeblue: Play() returned {started}");
         _videoRunning = true;
 
@@ -522,7 +532,7 @@ internal sealed class MainForm : Form
 
         SaveSettings();
         UpdateUi();
-        if (!started) SetStatus($"Video could not start. Details in {VlcLogPath}");
+        if (!started) SetStatus(VideoFailedText("Video could not start."));
     }
 
     /// <summary>Makes an open link the current one and hooks up its events.</summary>
@@ -559,13 +569,68 @@ internal sealed class MainForm : Form
             _link = null;
             _linkPort = null;
         }
-        if (_videoRunning)
+        if (_session is { } session)
         {
-            _player.Stop();
+            StopSession(session);
+            _session = null;
             _videoRunning = false;
             _videoWidth = _videoHeight = 0;
         }
         UpdateUi();
+    }
+
+    /// <summary>Stops a session without waiting for it; a stop that hangs leaves the viewer free.</summary>
+    private void StopSession(VideoSession session)
+    {
+        _stopping.Add(session);
+        session.BeginStop(ms => PostToUi(() =>
+        {
+            WriteLog($"codeblue: video stopped after {ms} ms");
+            _stopping.Remove(session);
+            session.Surface.Dispose();
+            if (_stuck.Remove(session)) UpdateUi(); // the dongle is free again
+        }));
+        // A stop that hangs means a stalled dongle, held until it's unplugged: say so.
+        _ = session.Stopped.WaitAsync(TimeSpan.FromSeconds(3)).ContinueWith(t =>
+        {
+            if (!t.IsFaulted) return;
+            WriteLog("codeblue: video still stopping after 3 s; leaving it behind");
+            PostToUi(() =>
+            {
+                if (!_stopping.Contains(session)) return; // finished meanwhile
+                _stuck.Add(session);
+                UpdateUi();
+            });
+        }, TaskScheduler.Default);
+    }
+
+    private string VideoFailedText(string what = "Video playback failed.") =>
+        _captureModeUnsupported ? UnsupportedModeText()
+        : _stopping.Count > 0 ? $"{what} The last video never let go of the dongle; unplug it and plug it back in."
+        : $"{what} Details in {VlcLogPath}";
+
+    /// <summary>On the timer thread: the fps field, posted to the UI only when it changes.</summary>
+    private void SampleFrameRate()
+    {
+        var session = _session;
+        string text;
+        try
+        {
+            text = session?.SampleFrameRate() switch
+            {
+                null when session is null => "Video off",
+                null => _fpsText ?? "Video off",
+                0 => "No video",
+                double fps => $"{fps:0} fps",
+            };
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+            return; // the session ended under us
+        }
+        if (text == _fpsText) return;
+        _fpsText = text;
+        PostToUi(() => _fpsField.Text = text);
     }
 
     /// <summary>
@@ -574,12 +639,12 @@ internal sealed class MainForm : Form
     /// </summary>
     private void ApplySquarePixels()
     {
-        if (!_videoRunning) return;
+        if (_session is not { } session) return;
         uint w = 0, h = 0;
-        if (_player.Size(0, ref w, ref h) && w > 0 && h > 0)
+        if (session.Player.Size(0, ref w, ref h) && w > 0 && h > 0)
         {
             string aspect = CaptureOptions.AspectOf(w, h);
-            _player.AspectRatio = aspect;
+            session.Player.AspectRatio = aspect;
             (_videoWidth, _videoHeight) = (w, h);
             ApplyScale(); // re-apply to the new video output
             if (_captured) ClipCursorToVideo();
@@ -597,7 +662,10 @@ internal sealed class MainForm : Form
     /// centre. Otherwise the picture is scaled to fit, which softens thin fonts
     /// when the scale isn't a whole number (1920 to 2560 is 1.33x).
     /// </summary>
-    private void ApplyScale() => _player.Scale = _settings.NativeScale ? 1f : 0f;
+    private void ApplyScale()
+    {
+        if (_session is { } session) session.Player.Scale = _settings.NativeScale ? 1f : 0f;
+    }
 
     private void ToggleNativeScale()
     {
@@ -1067,13 +1135,15 @@ internal sealed class MainForm : Form
 
     private void TakeSnapshot()
     {
-        if (!_videoRunning) return;
+        if (_session is not { } session) return;
         string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "CodeBlue");
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, $"codeblue-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-        ShowTransient(_player.TakeSnapshot(0, path, 0, 0)
-            ? $"Snapshot saved: {path}"
-            : "Snapshot failed.");
+        // libVLC waits for a frame to save; with a stalled dongle, that's not worth freezing for.
+        Task.Run(() => session.TakeSnapshot(path)).ContinueWith(t => PostToUi(() =>
+            ShowTransient(t is { IsCompletedSuccessfully: true, Result: true }
+                ? $"Snapshot saved: {path}"
+                : "Snapshot failed.")), TaskScheduler.Default);
     }
 
     // ---------------------------------------------------------------- Watchdog
@@ -1185,10 +1255,19 @@ internal sealed class MainForm : Form
         _closing = true;
         _heartbeatTimer.Dispose();
         _reconnectTimer.Dispose();
-        _video.MediaPlayer = null;
-        _player.Dispose();
-        _libVlc.Log -= OnVlcLog;
-        _libVlc.Dispose();
+        _fpsTimer.Dispose();
+        // Disconnect (on closing) started the stop. Give it a moment; if libVLC is
+        // stuck, leave it: releasing libVLC would wait on the stuck player forever,
+        // and the process ending takes care of it anyway.
+        if (Task.WaitAll([.. _stopping.Select(s => s.Stopped)], 1500))
+        {
+            _libVlc.Log -= OnVlcLog;
+            _libVlc.Dispose();
+        }
+        else
+        {
+            WriteLog("codeblue: exiting with libVLC still stopping");
+        }
         lock (_vlcLogLock)
         {
             _vlcLog?.Dispose();
