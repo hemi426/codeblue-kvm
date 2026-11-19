@@ -11,6 +11,14 @@ keyboard usage IDs, mouse buttons, and movement deltas.
 `tools/cb_test.py`. Until it's released, details may change without a version
 bump.
 
+Minor versions add to version 1 without changing what's already there, so
+any host and device that share the major version work together; each side
+uses what the other's capabilities and minor version offer.
+
+- **1.0** (firmware 0.1.1): the protocol as first released.
+- **1.1** (firmware 0.3.0): board settings (`SETTING_GET`, `SETTING_SET`,
+  `SETTING`, capability bit 4), and `abs_unread` in `TARGET_STATUS`.
+
 ### Requirements
 
 These come from real failure modes and are not optional:
@@ -120,6 +128,8 @@ the target indefinitely.
 | `0x30` | `LED` | `r` u8, `g` u8, `b` u8 |
 | `0x31` | `LED_BRIGHTNESS` | `percent` u8 (0 to 100), `persist` u8 (0 or 1) |
 | `0x40` | `RELEASE_ALL` | none |
+| `0x50` | `SETTING_GET` | `key` u8 (1.1) |
+| `0x51` | `SETTING_SET` | `key` u8, `value` i16 (1.1) |
 
 #### `SESSION_CONFIG`
 
@@ -172,15 +182,34 @@ Scales every colour the device shows, including its own status colours. With
 power-on; it skips the write if the stored value is already the same.
 
 The board is the source of truth: `INFO` reports the current value, and the
-viewer shows that rather than a remembered one. While the user adjusts it,
-the viewer sends `persist` 0 previews, then one `persist` 1 about a second
-after the last change, so flash is written once per adjustment. The
-firmware's built-in default (a build setting) is 5%.
+viewer shows that rather than a remembered one. While the user adjusts it in
+Board settings, the viewer sends `persist` 0 previews, then one `persist` 1
+on OK (or the original value with `persist` 0 on Cancel), so flash is
+written once per adjustment. The firmware's built-in default (a build
+setting) is 5%.
 
 #### `RELEASE_ALL`
 
 Releases every key and button immediately. The host sends it whenever
 capture ends.
+
+#### `SETTING_GET` and `SETTING_SET`
+
+Read or change a board setting (protocol 1.1; capability bit 4). The device
+answers each with a `SETTING` message, in order. `SETTING_SET` applies the
+value at once and saves it in flash, so it also applies from power-on.
+
+| Key | Setting | Values |
+|-----|---------|--------|
+| 1 | Status LED GPIO | A GPIO number, or -1 for none |
+| 2 | VBUS sense GPIO | A GPIO number, or -1 for none (no VBUS sense) |
+
+For either key, -2 forgets the saved value and goes back to the build
+default. The device refuses pins it can't use: 0, 3, 45, and 46 (strapping),
+19 and 20 (USB), 43 and 44 (the UART), 22 to 37 (flash and PSRAM, or not
+present), and anything outside 0 to 48. VBUS sense also refuses 47 and 48,
+which run at 1.8 V on modules with 1.8 V flash. The two settings can't share
+a pin.
 
 ### Messages: device to host
 
@@ -189,6 +218,7 @@ capture ends.
 | `0x81` | `INFO` | `protocol_major` u8, `protocol_minor` u8, `fw_major` u8, `fw_minor` u8, `fw_patch` u8, `capabilities` u16, `led_brightness` u8, `board[]` (UTF-8, rest of payload) |
 | `0x82` | `HEARTBEAT` | none |
 | `0x90` | `TARGET_STATUS` | `flags` u8, `kbd_leds` u8 |
+| `0xA0` | `SETTING` | `key` u8, `value` i16, `result` u8 (1.1) |
 | `0xE0` | `ERROR` | `code` u8, `detail` u8 |
 
 #### `INFO`
@@ -196,7 +226,7 @@ capture ends.
 The device's answer to `HELLO`. The host refuses a `protocol_major` it
 doesn't support, naming both versions in the message. `led_brightness` is
 the current brightness percentage. `board` is a short human-readable name
-such as `ESP32-S3-DevKitC-1 v1.0`.
+such as `ESP32-S3-DevKitC-1`.
 
 `capabilities`:
 
@@ -205,7 +235,12 @@ such as `ESP32-S3-DevKitC-1 v1.0`.
 | 0 | Absolute pointer (`MOUSE_ABS`) |
 | 1 | Relative mouse (`MOUSE_REL`) |
 | 2 | Persistent settings (`LED_BRIGHTNESS` with `persist`) |
-| 3 | VBUS sense (see "VBUS sense" below) |
+| 3 | VBUS sense (see "VBUS sense" below): a sense pin is set |
+| 4 | Board settings (`SETTING_GET` and `SETTING_SET`; 1.1) |
+
+Capabilities are reported once, in `INFO`. After a `SETTING_SET` of the VBUS
+sense pin, the `SETTING` reply's `value` says whether bit 3 now applies (any
+pin) or not (-1).
 
 #### `TARGET_STATUS`
 
@@ -222,6 +257,7 @@ second.
 | 3 | `mouse_boot` | The mouse is in boot protocol (see "Mouse modes"). |
 | 4 | `remote_wakeup` | The target has enabled remote wakeup, so a keypress can wake it. |
 | 5 | `vbus_present` | The target is supplying USB power. Always 0 unless `INFO` reports VBUS sense. |
+| 6 | `abs_unread` | The target hasn't collected an absolute pointer report for over a second, while mounted and not suspended (1.1; see "Mouse modes"). |
 
 `kbd_leds`, the target's own lock-key state from its HID output report, so
 the viewer can show the target's Caps Lock rather than the host's:
@@ -231,6 +267,20 @@ the viewer can show the target's Caps Lock rather than the host's:
 | 0 | Num Lock |
 | 1 | Caps Lock |
 | 2 | Scroll Lock |
+
+#### `SETTING`
+
+The answer to `SETTING_GET` or `SETTING_SET`: `value` is the setting now in
+effect (after a set, whether or not it changed), and `result` says how the
+request went:
+
+| Result | Meaning |
+|--------|---------|
+| 0 | OK |
+| 1 | Unknown key |
+| 2 | The pin can't be used for this setting |
+| 3 | The other setting already uses that pin |
+| 4 | Couldn't apply or save the value |
 
 #### `ERROR`
 
@@ -285,21 +335,26 @@ screens ignore absolute pointers entirely. The viewer has a mouse mode
 setting:
 
 - **Auto** (default): `MOUSE_ABS`, switching to `MOUSE_REL` whenever
-  `TARGET_STATUS` reports `mouse_boot`.
+  `TARGET_STATUS` reports `mouse_boot` or `abs_unread`.
 - **Absolute:** always `MOUSE_ABS`.
 - **Relative:** always `MOUSE_REL`. Use this for targets with more than one
   monitor: an absolute pointer spans the whole desktop, so on a multi-monitor
   target, clicks land in the wrong place relative to the one captured screen.
 
-Whether a given BIOS accepts the absolute pointer varies by machine; tested
-results belong in [the tested-targets table](../hardware/index.md#tested-targets).
+`abs_unread` covers firmware screens that use the boot protocol for the
+keyboard and mouse but never poll the absolute pointer: the device notices
+its report going uncollected. A screen that collects the report and ignores
+it can't be detected. Whether a given BIOS accepts the absolute pointer
+varies by machine; tested results belong in
+[the tested-targets table](../hardware/index.md#tested-targets).
 
 **VBUS sense (optional hardware).** Telling a sleeping target from an
 unplugged one needs the board to sense the target's 5 V USB power: a
 two-resistor voltage divider from the native port's VBUS (before its diode)
 to a spare GPIO. The ESP32-S3-DevKitC-1 doesn't have this; see
 [VBUS sense modification](../hardware/vbus-sense.md) for how to add it.
-Firmware built with a sense pin (`CONFIG_CODEBLUE_VBUS_GPIO`) sets
+With a sense pin set (from the viewer's Board settings, `SETTING_SET` key 2,
+or the build default `CONFIG_CODEBLUE_VBUS_GPIO`), the firmware sets
 capability bit 3 and reports `vbus_present`. The viewer then says "asleep"
 when the bus is suspended with power present, and "unplugged or powered off"
 when there's no power.

@@ -22,9 +22,9 @@ The viewer runs on Windows 10 or 11 (64-bit).
 
 Plug the board's **UART** port into your computer, open
 [Flashing](firmware.md#from-your-browser) in Chrome or Edge, and click the
-install button for your board. For other browsers, the same page shows how to
-flash with esptool instead. You only do this once per board (and again when
-you want a newer version).
+install button. For other browsers, the same page shows how to flash with
+esptool instead. You only do this once per board (and again when you want a
+newer version).
 
 ## 3. Get the viewer
 
@@ -42,6 +42,10 @@ Plug everything in, pick the board's port and the capture dongle in the
 viewer, and click **Connect**: the target's screen appears. Click
 **Capture** (or press Ctrl+Alt+C) to send it your keyboard and mouse, and
 press Ctrl+Alt to let go. [Connecting](viewer.md#connecting) has the details.
+
+If the board's RGB LED stays dark, or the board has the
+[VBUS sense modification](hardware/vbus-sense.md), set it up once in
+**Board settings...** (see [Board settings](firmware.md#board-settings)).
 
 From here:
 

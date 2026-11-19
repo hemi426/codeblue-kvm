@@ -20,11 +20,17 @@ and `%LOCALAPPDATA%\CodeBlue\libvlc.log` has the details.
 
 **Mouse doesn't move on the target?** Some BIOS screens and diagnostics tools
 (e.g., Dell SupportAssist On-board Diagnostics) ignore the absolute pointer,
-and **Mouse: Auto** can't always tell. Set **Mouse** to **Relative**. See
+and **Mouse: Auto** can't always tell; the status bar's Mouse field shows the
+mode in use. Set **Mouse** to **Relative** in **Viewer options**. See
 [Mouse](viewer.md#mouse).
 
-**Video lag?** Keep **Format** on MJPG and **Cache ms** around 50. Many
-dongles can only deliver 1080p at full frame rate as MJPEG.
+**Status LED dark?** The board probably has its LED on another pin
+(ESP32-S3-DevKitC-1 v1.1 boards use GPIO38). Set it in
+[Board settings](firmware.md#board-settings).
+
+**Video lag?** Keep **Format** on MJPG and **Cache ms** around 40 (both in
+**Viewer options**). Many dongles can only deliver 1080p at full frame rate
+as MJPEG.
 
 **Blurry or broken-looking text?** Use MJPG rather than YUY2 (see
 [What to buy](hardware/bom.md#capture-dongles)), and turn on **1:1 pixels**
@@ -40,11 +46,18 @@ the dongle's own name). If the target's display settings still offer
 recommended MS2130 stick doesn't do this (see
 [What to buy](hardware/bom.md#capture-dongles)).
 
-**Viewer freezes on Disconnect or when closing?** Seen with the UGREEN 15389:
-after the target's display sleeps, the dongle can stop sending video without
-reporting an error, and the viewer then hangs waiting for it to stop. End
-**CodeBlue** in Task Manager and start it again. The recommended MS2130 stick
-hasn't done this, and a fix in the viewer is planned.
+**Video flickers, drops frames, or stops?** Try another dongle before blaming
+the target or the viewer. The UGREEN 15389 does all three: it flickers to
+black, drops below its frame rate, and can stop sending video altogether
+without reporting an error (the frame rate in the status bar shows **No
+video**). The recommended MS2130 stick hasn't done any of these.
+
+**"Video stuck: unplug the dongle and plug it back in"?** The dongle stopped
+sending video so badly that it couldn't be stopped, and it's holding on until
+it's unplugged. Replug it, then **Connect** again. If it still won't open
+(the Windows Camera app can't open it either, and it's still listed after
+you unplug it), restart your computer. Viewers before 0.4.0 froze in this
+situation instead; end **CodeBlue** in Task Manager if an older one does.
 
 **Can't type in the viewer's own fields while capturing?** That's by design:
 release capture first (Ctrl+Alt).

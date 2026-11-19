@@ -79,7 +79,7 @@ that's CodeBlue.
 - **[Getting started](getting-started.md):** parts, flashing, the viewer, and
   your first capture.
 - **[Viewer](viewer.md):** controls, mouse modes, keys, and when capture ends.
-- **[Firmware](firmware.md):** flashing, board presets, the status LED, and
+- **[Firmware](firmware.md):** flashing, board settings, the status LED, and
   testing a board.
 - **[Hardware](hardware/index.md):** what to buy, tested targets, and the
   optional VBUS sense modification.

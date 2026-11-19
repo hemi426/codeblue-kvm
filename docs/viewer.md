@@ -20,41 +20,94 @@ If the board's cable is pulled or the board stops answering, the viewer
 releases capture, keeps the video running, and reconnects by itself when the
 board is back.
 
-## Controls
+## Toolbar
 
 | Control | What it does |
 |---------|--------------|
 | **Port** | The board's serial port (its UART port). **Refresh** rescans ports and video devices. |
 | **Video only** | Shows the video without a board, to just watch a screen. |
 | **Video** | The capture dongle. |
-| **Format, Size, FPS** | The mode to ask the dongle for. Use MJPG; when in doubt, set FPS to **Auto** (see [Troubleshooting](troubleshooting.md)). |
-| **Cache ms** | How much video libVLC buffers. Around 50 keeps lag low. |
-| **LED %** | The board's status LED brightness, saved on the board itself. |
-| **Mouse** | How the pointer reaches the target (see below). |
-| **1:1 pixels** | Shows the capture unscaled, for the sharpest text. |
 | **Capture** | Sends keyboard and mouse to the target. |
 | **Ctrl+Alt+Del** | Sends Ctrl+Alt+Del to the target (you can't type it; see below). |
 | **Snapshot** | Saves the current frame to Pictures\CodeBlue. |
 | **Full screen** | Fills the screen with the target. |
+| **Board settings...** | Settings kept on the board (see below). Needs a connected board. |
+| **Viewer options...** | The viewer's own settings (see below). |
 
-The video settings are locked while connected; disconnect to change them.
 The viewer remembers your choices in `%APPDATA%\CodeBlue\viewer.json`.
+
+## Viewer options
+
+| Option | What it does |
+|--------|--------------|
+| **Format, Size, FPS** | The mode to ask the dongle for. Use MJPG; when in doubt, set FPS to **Auto** (see [Troubleshooting](troubleshooting.md)). |
+| **Cache ms** | How much video libVLC buffers. The default, 40, keeps lag low. |
+| **Mouse** | How the pointer reaches the target (see [Mouse](#mouse)). |
+| **1:1 pixels** | Shows the capture unscaled, for the sharpest text (also Ctrl+Alt+1). |
+
+Video changes take effect the next time you connect; the mouse and 1:1
+pixels apply at once.
+
+## Board settings
+
+These live on the board, so they follow it to any computer. They need
+firmware 0.3.0 or later, except the LED brightness.
+
+| Setting | What it does |
+|---------|--------------|
+| **Board** | Your board, to fill in its pins. **Custom** is for a board that isn't listed. |
+| **Status LED: GPIO** | The pin driving the board's RGB LED. |
+| **Status LED: Brightness %** | The LED's brightness. It changes as you adjust it; **Cancel** puts it back. |
+| **VBUS sense mod: Present** | **Yes** for a board with the [VBUS sense modification](hardware/vbus-sense.md). |
+| **VBUS sense mod: GPIO** | The pin the divider feeds. |
+
+Choosing a board fills in its pins, and each GPIO label shows that board's
+default (e.g., "GPIO (default: 48)"), so you can see when you've strayed
+from it. Changing a pin keeps the board you chose; choose it again to put
+its pins back.
+
+The board applies each change at once and keeps it across resets. It refuses
+pins it can't use, and the dialog says why. Flashing the firmware resets
+these settings (see [Firmware](firmware.md#board-settings)).
+
+The board keeps only its pins, not which board you chose; the viewer
+remembers that. Until you've chosen one, it shows the board whose pins
+match, or **Custom**. If you switch between boards of different kinds, it
+shows the one you chose last until you change it (the pins are always read
+from the board).
+
+## Status bar
+
+The status bar shows the connection and the target's state on the left, and
+on the right:
+
+- **Frame rate:** frames per second from the dongle; **No video** when frames
+  stop arriving, and **Video off** when not connected.
+- **Mouse:** the mode in use, with **(Auto)** when Auto chose it. Hover over
+  it for the reason.
+- **NUM, CAPS, SCRL:** the target's lock keys, bold when on.
+
+If a dongle stalls badly enough that libVLC can't stop it, the status bar
+says **Video stuck: unplug the dongle and plug it back in.** The viewer
+carries on meanwhile; only the dongle needs a replug.
 
 ## Mouse
 
 **Mouse** sets how the pointer reaches the target:
 
 - **Auto** (default): absolute, switching to relative when the target asks
-  for a basic "boot" mouse, as some BIOS setup screens do.
+  for a basic "boot" mouse, as some BIOS setup screens do, or (with firmware
+  0.3.0 or later) when it isn't reading the absolute pointer at all.
 - **Absolute:** the target's pointer goes exactly where yours is on the
   picture, with no fighting the target's mouse acceleration.
 - **Relative:** an ordinary mouse. Use it for targets with more than one
   monitor, where absolute positions span the whole desktop.
 
 If the pointer doesn't move in a BIOS screen or a diagnostics tool, choose
-**Relative**. Some (e.g., Dell SupportAssist On-board Diagnostics) ignore the
-absolute pointer without asking for the boot mouse, so **Auto** never gets its
-cue to switch.
+**Relative**. A few tools (e.g., Dell SupportAssist On-board Diagnostics on
+some models) read the absolute pointer and then ignore it, which no device
+can detect, so **Auto** never gets its cue to switch. The status bar's Mouse
+field shows which mode is in use.
 
 ## Keys
 

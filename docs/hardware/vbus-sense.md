@@ -86,7 +86,7 @@ The divider turns 5.12 V into 3.07 V at the pin (3.15 V at USB's maximum
 read a high. With nothing plugged into the target port, the 15 kΩ holds the
 pin at 0 V.
 
-**Check it before building the firmware.** With your computer on the UART
+**Check it before turning it on in the viewer.** With your computer on the UART
 port, measure GPIO21 to GND: it should read well under 0.1 V with the target
 unplugged (about 20 mV on both tested boards with 100k/150k), and about 3 V
 with the target plugged in and on (3.05 V on both).
@@ -109,21 +109,27 @@ spikes entirely. It slows the signal by a few milliseconds at most (about
 6 ms with 100k/150k), which is instant as far as the viewer is concerned.
 
 If you use another GPIO, avoid 0, 3, 45, and 46 (boot mode); 19 and 20
-(USB); 43 and 44 (the UART); the LED pin (48 or 38); 33 to 37 on boards with
-octal PSRAM (N16R8 and other "R8" boards); and 47 (1.8 V on some modules).
+(USB); 43 and 44 (the UART); 22 to 37 (flash and PSRAM); the LED pin (48 or
+38); and 47 and 48 (1.8 V on some modules). The firmware refuses all of
+these.
 
 ## Firmware
 
-The release images don't read the pin, since on an unmodified board it would
-float. Build the firmware with the pin set (see
-[Building](../development/building.md)):
+The firmware doesn't read the pin until it's told to, since on an
+unmodified board the pin would float. With firmware 0.3.0 or later, connect
+with the viewer, open **Board settings...**, set **VBUS sense mod: Present**
+to **Yes**, and check the GPIO (21 for the mod above). The board keeps the
+setting until the firmware is flashed again.
+
+Then check it: the status bar should say "Target: asleep" (not "asleep or
+disconnected") when the target sleeps, and "unplugged or powered off" when
+its cable is out. Or, without the viewer:
 
 ```sh
-idf.py menuconfig          # CodeBlue → VBUS sense GPIO: 21
-idf.py build
-idf.py -p COM10 flash      # use your board's UART port
+python tools/cb_test.py COM10 set vbus-gpio 21
+python tools/cb_test.py COM10 info   # capabilities 0x001F, and vbus_present while the target is on
 ```
 
-Then check it: `python tools/cb_test.py COM10 info` should show capabilities
-`0x000F`, and `vbus_present` in the target status while the target is
-plugged in and on.
+Firmware before 0.3.0 needs its own build with the pin set
+(**CodeBlue → VBUS sense GPIO** in `idf.py menuconfig`; see
+[Building](../development/building.md)).

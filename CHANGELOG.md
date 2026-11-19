@@ -3,8 +3,28 @@
 The firmware and the viewer are released separately, each with its own
 version. Any firmware and viewer that speak the same protocol version work
 together (the handshake checks it); every release so far speaks protocol 1.
+Newer features need both sides to have them: Board settings need firmware
+0.3.0 or later.
 
 ## Viewer
+
+### [0.4.0](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.4.0) (2026-11-19)
+
+- **Board settings...:** set the board's LED pin, LED brightness, and VBUS
+  sense pin from the viewer, starting from a board preset (firmware 0.3.0 or
+  later; the brightness works with any firmware).
+- **Viewer options...:** the video format, size, frame rate, and buffering,
+  the mouse mode, and 1:1 pixels, moved off the toolbar.
+- A new status bar: the dongle's frame rate (or **No video**), the mouse
+  mode in use and why, and the target's Num, Caps, and Scroll Lock.
+- **Mouse: Auto** also switches to relative when the target isn't reading
+  the absolute pointer (firmware 0.3.0 or later).
+- Fixed: a dongle that stops sending video no longer freezes the viewer on
+  Disconnect or when closing. The status bar says to replug the dongle if
+  it's stuck.
+- Snapshot messages clear after a few seconds.
+- **Cache ms** now defaults to 40 for new installs.
+- The video device list leaves out unplugged devices.
 
 ### [0.3.3](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.3.3) (2026-11-16)
 
@@ -46,6 +66,17 @@ The first release:
   viewer uses.
 
 ## Firmware
+
+### [0.3.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.3.0) (2026-11-19)
+
+- Board settings (protocol 1.1): the status LED pin and the VBUS sense pin
+  can be set from the viewer, or with `tools/cb_test.py`, and the board
+  saves them. Pins the board can't use are refused.
+- One release image for every supported board, replacing the two board
+  presets.
+- The target status reports when the target isn't reading the absolute
+  pointer (as some firmware setup screens don't), so the viewer's automatic
+  mouse mode can switch to relative.
 
 ### [0.2.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.2.0) (2026-11-10)
 

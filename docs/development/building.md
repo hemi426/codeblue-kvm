@@ -157,16 +157,14 @@ idf.py build
 idf.py -p COM10 flash                       # use your board's UART port
 ```
 
-For another board revision, add `-DBOARD=esp32-s3-devkitc-1-v1.1` (see
-`firmware/boards/`). When switching boards, or after pulling changes to the
+One image suits every supported board: the LED and VBUS sense pins are set
+from the viewer's **Board settings** (see
+[Board settings](../firmware.md#board-settings)). To build with different
+defaults (for a board of your own, say), add a preset in `firmware/boards/`
+and pick it with `-DBOARD=<preset>`, or change them in `idf.py menuconfig`
+under **CodeBlue**. After switching presets, or after pulling changes to the
 build defaults, delete `firmware/sdkconfig` first; the build stops with that
 instruction if it notices a mismatch.
-
-For a board with the VBUS sense modification
-([VBUS sense](../hardware/vbus-sense.md)), run
-`idf.py menuconfig` and set **CodeBlue → VBUS sense GPIO** to the pin you
-wired (21 on the tested clones) before building. The setting lives in
-`firmware/sdkconfig`, so set it again after deleting that file.
 
 The UART port carries the viewer's protocol once the firmware is up, so
 `idf.py monitor` shows only the start-up log. To check a freshly flashed
@@ -191,7 +189,7 @@ Any firmware and viewer that speak the same protocol version work together
 
 3. The Release workflow (`.github/workflows/release.yml`) checks the tag
    matches the code, builds everything, and assembles a **draft** release:
-   - firmware: one merged image per board preset, flashed at `0x0`;
+   - firmware: one merged image, flashed at `0x0`;
    - viewer: a small zip (needs the .NET 10 Desktop Runtime) and a portable
      one (includes .NET; unzip and run);
    - `SHA256SUMS.txt`, and release notes with flashing or install steps.

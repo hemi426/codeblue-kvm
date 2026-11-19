@@ -5,7 +5,7 @@ things worth doing, kept in one place so they don't get lost.
 
 ## Before outside testers
 
-- [x] **CI:** build the firmware (both board presets) and the viewer on every
+- [x] **CI:** build the firmware and the viewer on every
       push, and run the framing tests (`firmware/main/frame.c`'s test, moved
       into the repo, and `tools/cb_test.py selftest`).
 - [x] **Parts list** (`docs/hardware/bom.md`): tested boards (with both USB
@@ -41,7 +41,7 @@ things worth doing, kept in one place so they don't get lost.
   - [ ] Maybe: 1080p60 on the stick's USB 2 mode (bandwidth may not allow it).
 - [x] **Install from the browser:** an "Install CodeBlue" button on the docs
       site using ESP Web Tools (the flasher ESPHome uses), with a manifest per
-      board preset. The firmware images have to be published on the Pages
+      board preset (one, since firmware 0.3.0). The firmware images have to be published on the Pages
       site itself, since browsers can't fetch GitHub release downloads from
       another site. Chrome and Edge only (Web Serial), so the esptool
       command stays in the docs as the fallback.
@@ -57,14 +57,14 @@ things worth doing, kept in one place so they don't get lost.
 ## Firmware
 
 - [ ] Test waking a sleeping target with a keypress (remote wakeup).
-- [ ] Test a target that puts the mouse in boot protocol.
-- [ ] Tell the viewer when the target ignores the absolute pointer, so
-      **Mouse: Auto** can switch to relative by itself. Dell SupportAssist
-      On-board Diagnostics on an OptiPlex 5080 uses the relative mouse in
-      report protocol and never reads the absolute pointer, so Auto stays on
-      absolute and nothing moves.
-      If the absolute pointer's reports go unread (its endpoint stays busy),
-      the board could flag it in `TARGET_STATUS`.
+- [x] Test a target that puts the mouse in boot protocol: the OptiPlex 5090's
+      BIOS setup, One-Time Boot menu, and SupportAssist all do.
+- [x] Tell the viewer when the target ignores the absolute pointer, so
+      **Mouse: Auto** can switch to relative by itself: `abs_unread` in
+      `TARGET_STATUS` (firmware 0.3.0, viewer 0.4.0), set when the absolute
+      pointer's reports go uncollected. Verified on the OptiPlex 5090. A
+      target that collects the reports and ignores them (SupportAssist on the
+      OptiPlex 5080) can't be detected.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
 - [ ] Keep-awake ("jiggle") mode: the board nudges the mouse (+1, then -1, so
       the pointer never drifts) or taps an unused key such as F15 every so
@@ -81,21 +81,23 @@ things worth doing, kept in one place so they don't get lost.
 - [x] VBUS sense photo in `docs/hardware/vbus-sense.md`: the finished mod on
       an N16R8, with the sense pad marked (labels drawn by
       `tools/label_vbus_photo.py`).
-- [ ] VBUS sense, later: a setting the viewer can save on the board, so the
-      release images work with the mod too; and perhaps esp_tinyusb's
-      self-powered mode (`vbus_monitor_io`), which would turn an unplug into
-      a proper USB disconnect.
+- [x] Board settings the viewer can save on the board (the LED and VBUS
+      sense pins), so one release image suits every board, the mod
+      included. Firmware 0.3.0, viewer 0.4.0.
+- [ ] Maybe: esp_tinyusb's self-powered mode (`vbus_monitor_io`), which
+      would turn an unplug into a proper USB disconnect.
+- [ ] Maybe: keep board settings across firmware updates (the release image
+      currently overwrites the flash where they're kept).
 
 ## Viewer
 
-- [ ] **0.3.4: don't hang on a stalled dongle.** A dongle that stops sending
-      frames without an error (the UGREEN, after the target's display sleeps)
-      leaves libVLC waiting, and `Stop()` on the window's thread then freezes
-      the viewer (confirmed with a dump). Call libVLC off the window's thread;
-      if `Stop()` doesn't return within a few seconds, abandon that player,
-      make a fresh one, and say so in the status bar; don't wait at all on
-      exit. Add an fps counter that doubles as a watchdog: "no video from the
-      dongle" in the status bar when frames stop.
+- [x] **Don't hang on a stalled dongle** (viewer 0.4.0). A dongle that stops
+      sending frames without an error (the UGREEN) left libVLC waiting, and
+      `Stop()` on the window's thread froze the viewer. Each session now gets
+      its own player, stopped off the window's thread and abandoned if it
+      hangs; the status bar says to replug the dongle, and exit doesn't wait.
+      An fps field shows **No video** when frames stop. Verified against the
+      UGREEN.
 - [ ] Horizontal scrolling (`pan`) from tilt wheels and touchpads.
 - [ ] Polish: dropdown widths, better DirectShow device listing, settings per
       capture device, and a view of the modes a dongle offers. Ideally the
