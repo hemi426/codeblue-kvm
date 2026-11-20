@@ -119,7 +119,7 @@ The firmware doesn't read the pin until it's told to, since on an
 unmodified board the pin would float. With firmware 0.3.0 or later, connect
 with the viewer, open **Board settings...**, set **VBUS sense mod: Present**
 to **Yes**, and check the GPIO (21 for the mod above). The board keeps the
-setting until the firmware is flashed again.
+setting across firmware updates (0.4.0 and later) until it's erased.
 
 Then check it: the status bar should say "Target: asleep" (not "asleep or
 disconnected") when the target sleeps, and "unplugged or powered off" when

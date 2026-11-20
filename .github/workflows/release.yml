@@ -58,11 +58,33 @@ jobs:
           path: firmware
           command: idf.py -DBOARD=${{ matrix.board }} build merge-bin
 
-      - name: Name the image
+      # Two ways to flash: the merged image (everything from 0x0, for a clean
+      # install; it overwrites the board settings in NVS), and the three parts
+      # on their own (for updates, leaving NVS and the board settings alone).
+      # The installer and the docs assume the standard addresses, so check them.
+      - name: Name the images
         run: |
-          mkdir -p "$RUNNER_TEMP/out"
-          cp firmware/build/merged-binary.bin \
-             "$RUNNER_TEMP/out/codeblue-firmware-${{ steps.version.outputs.version }}.bin"
+          v="${{ steps.version.outputs.version }}"
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          b=firmware/build
+          cp "$b/merged-binary.bin" "$out/codeblue-firmware-$v.bin"
+          for part in "0x0 bootloader" "0x8000 partition-table" "0x10000 app"; do
+            set -- $part
+            file="$(jq -r --arg o "$1" '.flash_files[$o] // empty' "$b/flasher_args.json")"
+            if [ -z "$file" ]; then
+              echo "::error::No flash file at $1 in flasher_args.json; the installer and docs expect bootloader 0x0, partition table 0x8000, app 0x10000."
+              jq .flash_files "$b/flasher_args.json"
+              exit 1
+            fi
+            cp "$b/$file" "$out/codeblue-firmware-$v-$2.bin"
+          done
+          if [ "$(jq '.flash_files | length' "$b/flasher_args.json")" != 3 ]; then
+            echo "::error::Expected exactly three flash files."
+            jq .flash_files "$b/flasher_args.json"
+            exit 1
+          fi
+          ls -l "$out"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -150,15 +172,21 @@ jobs:
           **Easiest:** install it from your browser (Chrome or Edge) at
           https://hemi426.github.io/codeblue-kvm/firmware#flashing
 
-          **With esptool:** plug in the board's UART port, then (esptool comes with
-          ESP-IDF, or \`pip install esptool\`):
+          **With esptool:** plug in the board's UART port (esptool comes with ESP-IDF,
+          or \`pip install esptool\`). To update, keeping the board's settings:
+
+          \`\`\`
+          python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v-bootloader.bin 0x8000 codeblue-firmware-$v-partition-table.bin 0x10000 codeblue-firmware-$v-app.bin
+          \`\`\`
+
+          For a clean install, which resets the board's settings:
 
           \`\`\`
           python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-$v.bin
           \`\`\`
 
-          Use your board's port in place of COM10. One image suits every DevKitC-style
-          board: if the status LED stays dark, set its pin in the viewer's board settings.
+          Use your board's port in place of COM10. The same firmware suits every DevKitC-style
+          board: if the status LED stays dark, set its pin in the viewer's Board settings.
           \`SHA256SUMS.txt\` lists each file's checksum.
           EOF
               ;;

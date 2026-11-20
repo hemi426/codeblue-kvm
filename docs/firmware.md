@@ -8,10 +8,11 @@ the viewer over the board's UART port with the
 
 ## Flashing
 
-Each firmware release has one image for every supported board, holding the
-bootloader, partition table, and app. Board differences (which pin drives
-the LED, and whether the board has the VBUS sense modification) are set from
-the viewer afterwards; see [Board settings](#board-settings).
+The same firmware suits every supported board. Board differences (which pin
+drives the LED, and whether the board has the VBUS sense modification) are
+set from the viewer afterwards; see [Board settings](#board-settings).
+Updating keeps those settings (firmware 0.4.0 and later), unless you choose
+to erase the board.
 
 ### From your browser
 
@@ -19,8 +20,9 @@ The easiest way, with nothing to install. It needs Chrome or Edge on a
 desktop computer (they're the browsers that can talk to serial ports).
 
 1. Plug the board's **UART** port into your computer.
-2. Click the button, pick the board's port, and follow the prompts. Erasing
-   the board first is optional.
+2. Click the button, pick the board's port, and follow the prompts. Leave
+   **Erase device** unticked to keep the board's settings; tick it for a
+   clean start.
 
 <p>
 <esp-web-install-button manifest="/codeblue-kvm/install/codeblue.json">
@@ -35,15 +37,25 @@ The button always installs the latest firmware release.
 
 For other browsers, or without the site:
 
-1. Download the image from the latest firmware release
+1. Download the images from the latest firmware release
    ([Releases](https://github.com/hemi426/codeblue-kvm/releases?q=firmware&expanded=true)).
 2. Plug the board's **UART** port into your computer.
-3. Write the image with esptool (it comes with ESP-IDF, or
-   `pip install esptool`), using your board's port in place of COM10:
+3. Write them with esptool (it comes with ESP-IDF, or `pip install esptool`),
+   using your board's port in place of COM10. To update, keeping the board's
+   settings, write the three parts:
+
+   ```sh
+   python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-<version>-bootloader.bin 0x8000 codeblue-firmware-<version>-partition-table.bin 0x10000 codeblue-firmware-<version>-app.bin
+   ```
+
+   For a clean install, which resets the board's settings, write the whole
+   image instead:
 
    ```sh
    python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 codeblue-firmware-<version>.bin
    ```
+
+Releases before 0.4.0 have only the whole image.
 
 `SHA256SUMS.txt` in each release lists every file's checksum.
 
@@ -66,9 +78,9 @@ later):
   [VBUS sense modification](hardware/vbus-sense.md), choose **Yes** and the
   pin the divider feeds (21 on the tested boards).
 
-The board applies each change at once and keeps it across resets. Flashing
-an image (an update included) resets the settings, since the image covers
-the part of flash where they're kept, so set them again afterwards. It refuses pins it can't use (the strapping, USB, UART,
+The board applies each change at once and keeps it across resets and
+firmware updates (0.4.0 and later). Erasing the board, or writing the whole
+image, resets them. It refuses pins it can't use (the strapping, USB, UART,
 and flash or PSRAM pins), and the viewer says why. Tested boards are in
 [What to buy](hardware/bom.md#boards). `tools/cb_test.py` can set the same
 settings without the viewer (see [Logs and testing](#logs-and-testing)).
@@ -142,7 +154,8 @@ firmware/build/test_frame
 
 CI (`.github/workflows/ci.yml`) runs it on every push, along with a firmware
 build. The build is kept as a zip on the run's page; its
-`merged-binary.bin` flashes the same way as a release image:
+`merged-binary.bin` flashes the same way as a release's whole image (which
+resets the board's settings):
 
 ```sh
 python -m esptool --chip esp32s3 -p COM10 write-flash 0x0 merged-binary.bin

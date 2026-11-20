@@ -67,8 +67,9 @@ from it. Changing a pin keeps the board you chose; choose it again to put
 its pins back.
 
 The board applies each change at once and keeps it across resets. It refuses
-pins it can't use, and the dialog says why. Flashing the firmware resets
-these settings (see [Firmware](firmware.md#board-settings)).
+pins it can't use, and the dialog says why. Firmware updates keep these
+settings (0.4.0 and later); erasing the board resets them (see
+[Firmware](firmware.md#board-settings)).
 
 The board keeps only its pins, not which board you chose; the viewer
 remembers that. Until you've chosen one, it shows the board whose pins

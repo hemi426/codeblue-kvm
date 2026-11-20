@@ -67,6 +67,14 @@ The first release:
 
 ## Firmware
 
+### [0.4.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.4.0) (2026-11-19)
+
+- Updates keep the board's settings: releases now include the bootloader,
+  partition table, and app as separate images, and the browser installer
+  writes those, leaving the settings alone unless you choose to erase. That
+  includes the update from 0.3.0. The whole image is still there for a
+  clean install.
+
 ### [0.3.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.3.0) (2026-11-19)
 
 - Board settings (protocol 1.1): the status LED pin and the VBUS sense pin

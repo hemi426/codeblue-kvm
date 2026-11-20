@@ -86,8 +86,9 @@ things worth doing, kept in one place so they don't get lost.
       included. Firmware 0.3.0, viewer 0.4.0.
 - [ ] Maybe: esp_tinyusb's self-powered mode (`vbus_monitor_io`), which
       would turn an unplug into a proper USB disconnect.
-- [ ] Maybe: keep board settings across firmware updates (the release image
-      currently overwrites the flash where they're kept).
+- [x] Keep board settings across firmware updates (firmware 0.4.0): releases
+      include the bootloader, partition table, and app as separate images,
+      and the installer writes those, leaving the settings alone.
 
 ## Viewer
 

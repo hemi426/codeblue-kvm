@@ -3,8 +3,8 @@
 # repository is public (Pages on a private repository needs a paid plan).
 #
 # The site includes the browser installer (docs/firmware.md): each build
-# copies the latest firmware release's image into docs/install/ and writes
-# an ESP Web Tools manifest (codeblue.json) next to it. Browsers can't
+# copies the latest firmware release's images into docs/install/ and writes
+# an ESP Web Tools manifest (codeblue.json) next to them. Browsers can't
 # flash files fetched from GitHub's release downloads (another site), so the
 # images have to be served by the site itself.
 #
@@ -84,14 +84,32 @@ jobs:
           mkdir -p docs/install
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
             --pattern 'codeblue-firmware-*.bin' --dir docs/install
-          bin="codeblue-firmware-$v.bin"
-          if [ ! -f "docs/install/$bin" ]; then
+          # Since 0.4.0, releases include the bootloader, partition table, and
+          # app as separate images. Writing those three leaves the board
+          # settings (NVS, between the partition table and the app) alone
+          # unless the user chooses to erase. Earlier releases have only the
+          # merged image, written from 0, which overwrites them.
+          p="codeblue-firmware-$v"
+          if [ -f "docs/install/$p-app.bin" ]; then
+            for part in bootloader partition-table; do
+              if [ ! -f "docs/install/$p-$part.bin" ]; then
+                echo "::error::$tag has an app image but no $part image."
+                exit 1
+              fi
+            done
+            parts="{ \"path\": \"$p-bootloader.bin\", \"offset\": 0 },
+                     { \"path\": \"$p-partition-table.bin\", \"offset\": 32768 },
+                     { \"path\": \"$p-app.bin\", \"offset\": 65536 }"
+            keeps="keeps the board settings"
+          elif [ -f "docs/install/$p.bin" ]; then
+            parts="{ \"path\": \"$p.bin\", \"offset\": 0 }"
+            keeps="resets the board settings (merged image)"
+          else
             echo "::error::$tag has no firmware image the installer can use."
             exit 1
           fi
-          # The merged image holds bootloader, partition table and app, so
-          # it's written at offset 0. improv_wait_time 0: CodeBlue doesn't
-          # speak Improv (Wi-Fi setup), so don't wait for it after flashing.
+          # improv_wait_time 0: CodeBlue doesn't speak Improv (Wi-Fi setup),
+          # so don't wait for it after flashing.
           cat > docs/install/codeblue.json <<JSON
           {
             "name": "CodeBlue firmware",
@@ -99,12 +117,13 @@ jobs:
             "new_install_prompt_erase": true,
             "new_install_improv_wait_time": 0,
             "builds": [
-              { "chipFamily": "ESP32-S3", "parts": [ { "path": "$bin", "offset": 0 } ] }
+              { "chipFamily": "ESP32-S3", "parts": [ $parts ] }
             ]
           }
           JSON
+          jq . docs/install/codeblue.json
           ls -l docs/install
-          echo "Installer serves firmware $v." >> "$GITHUB_STEP_SUMMARY"
+          echo "Installer serves firmware $v; updating $keeps." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build the site
         working-directory: docs

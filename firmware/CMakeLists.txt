@@ -3,7 +3,7 @@
 #   idf.py build                    (or: idf.py -DBOARD=<preset> build)
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_VER "0.3.0")
+set(PROJECT_VER "0.4.0")
 
 # Board preset: boards/<BOARD>.defaults is layered over sdkconfig.defaults.
 set(BOARD "esp32-s3-devkitc-1" CACHE STRING "Board preset, from boards/")
