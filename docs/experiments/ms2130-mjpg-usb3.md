@@ -2,7 +2,7 @@
 
 **Status:** working. A $9 MS2130 HDMI capture stick now streams MJPG at 1920×1080 @ 60 fps over USB 3, verified with ffmpeg and VLC.
 
-> **Experimental and unsupported.** This rewrites the dongle's own firmware with a third-party tool. It worked on one firmware revision of one stick; yours may differ, and a bad write can brick it. Keep your original dump. See [the experiments overview](index.md).
+> **Experimental and unsupported.** This rewrites the dongle's own firmware with a third-party tool. It has worked on three sticks, all with the same firmware revision; yours may differ, and a bad write can brick it. Keep your original dump. See [the experiments overview](index.md).
 
 ## Why
 
@@ -46,12 +46,40 @@ The tool reads only header + code + trailer, not the whole flash chip.
 
 ## Dumps
 
-Each dongle was read four times (twice on USB 3, twice through a USB 2-only extension). All reads of a dongle hashed identically.
+Each dongle was read four times (twice on USB 3, twice through a USB 2-only extension). All reads of a dongle hashed identically. Two more sticks from the same listing, bought later, dumped byte-identical to A, and the patch worked on both.
 
 | | Size | SHA-256 |
 |---|---|---|
 | A original | 51,677 bytes | `2be37a65dee892cea965dbab04e5d4a429937473c84e9256f768420313c662c7` |
 | B original | 59,488 bytes | `b09526e9a1759482fb94b1e9f18accf48deb80fa69b660ecb4a873bfe646abd6` |
+
+### Checking a dump
+
+Read your stick with the download tool (**Flash**, **Read**, then **Save To
+BIN**), twice, and hash both files:
+
+```powershell
+Get-FileHash .\my_dump.bin      # Windows (PowerShell); SHA-256 is the default
+```
+
+```sh
+sha256sum my_dump.bin           # Linux
+shasum -a 256 my_dump.bin       # macOS
+```
+
+PowerShell prints the hash in capitals; case doesn't matter when comparing.
+
+- **The two reads differ:** a flaky read. Try another port or cable before
+  trusting either.
+- **They match the A hash above:** the same firmware as the tested stick; the
+  patch applies.
+- **They match each other but not A:** a different firmware revision.
+  `build_patch.py` refuses it on purpose; please
+  [open an issue](https://github.com/hemi426/codeblue-kvm/issues) with the
+  dump's size and hash, and keep the dump.
+
+The same commands check the patched image and its read-back (see
+[Flashing](#flashing)).
 
 ## Image format
 
@@ -160,9 +188,25 @@ ffmpeg -f dshow -vcodec mjpeg -video_size 1920x1080 -framerate 60 -i video="USB3
 "C:\Program Files\VideoLAN\VLC\vlc" dshow:// :dshow-vdev="USB3.0 UHD" :dshow-adev=none :dshow-size=1920x1080 :dshow-chroma=MJPG :dshow-fps=60 :live-caching=50
 ```
 
+**Push the plug all the way in.** USB 3's extra contacts sit deeper in the
+plug than USB 2's, so a stick (or its extension) that isn't fully seated
+connects as USB 2: it offers only its USB 2 modes (MJPG up to 1080p50) and
+nothing says why. Seat it fully, then click **Refresh** in the viewer.
+
 `:dshow-chroma=MJPG` matters: the descriptor lists YUY2 first, so a viewer that doesn't specify a chroma may still get YUY2. In the CodeBlue viewer, set **Format** to MJPG, which requests it explicitly.
 
 **Cross-check against a published image:** an MS2130 firmware image published alongside the format documentation in [Forest178/ms21xx-firmware-research](https://github.com/Forest178/ms21xx-firmware-research) (original provenance unknown; manufacturer string "UltraSemi", 64,416 bytes of code, SHA-256 `b9a097f11db196fba8bca36c4a7d089e71de47c50edea691c3261ce4192d5f7a`) contains a USB 3 configuration descriptor that is **byte-identical** to the one this patch builds: all 1320 bytes. It also shares A's EDID and serial strings byte for byte, and its trailer (`25F7 726C`) follows the same checksum formula. Its code is a different build, so it's useful as a reference, not as something to flash onto A.
+
+**Cross-check against MacroSilicon's own sample:** the download tool's package
+includes a reference image, `ms2130_sample_20230221_0082_F2B5H.bin` (64,468
+bytes, SHA-256 `9bebd7c0352f3038c2d2f509bc280dff0a4db13b690a754e03511792def2cda6`,
+trailer `25F7 C571`). It has the same USB IDs, serial strings, and EDID as A,
+offers MJPG and YUY2 on both USB 2 and USB 3, and its USB 3 configuration is
+**byte-identical** to the one this patch builds: all 1320 bytes. So A runs a
+trimmed build of MacroSilicon's reference firmware, and the patch restores
+exactly what the reference offers. The sample is a reference build for
+MacroSilicon's own board, so its hardware settings may not match a given
+stick; don't flash it in place of the patch.
 
 ## Notes and open items
 
@@ -174,7 +218,8 @@ ffmpeg -f dshow -vcodec mjpeg -video_size 1920x1080 -framerate 60 -i video="USB3
 
 ## Files
 
-The scripts are GPL-3.0-or-later. The firmware images are MacroSilicon's code and aren't distributed here: dump your own stick and compare it against the hashes above.
+The scripts are GPL-3.0-or-later. The firmware images are MacroSilicon's code and aren't distributed here: dump your own stick and compare it against the hashes above (see
+[Checking a dump](#checking-a-dump)).
 
 | File | Purpose |
 |---|---|

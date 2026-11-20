@@ -46,6 +46,11 @@ the dongle's own name). If the target's display settings still offer
 recommended MS2130 stick doesn't do this (see
 [What to buy](hardware/bom.md#capture-dongles)).
 
+**Dongle stuck at 1080p50, or missing modes?** A USB 3 dongle that isn't
+plugged in all the way (or is on a USB 2 port or extension) connects as USB 2,
+with fewer modes. Push the plug, and any extension, fully in, then click
+**Refresh**.
+
 **Video flickers, drops frames, or stops?** Try another dongle before blaming
 the target or the viewer. The UGREEN 15389 does all three: it flickers to
 black, drops below its frame rate, and can stop sending video altogether
