@@ -24,6 +24,15 @@ and **Mouse: Auto** can't always tell; the status bar's Mouse field shows the
 mode in use. Set **Mouse** to **Relative** in **Viewer options**. See
 [Mouse](viewer.md#mouse).
 
+**Keypress doesn't wake a sleeping target?** The target has to allow it. In
+the BIOS, enable USB wake and turn off any deep-sleep setting that cuts USB
+power while asleep (on Dells: **Power Management > USB Wake Support** on,
+**Deep Sleep Control** off). In Windows, tick **Allow this device to wake the
+computer** on the keyboard's **Power Management** tab in Device Manager.
+With the [VBUS sense mod](hardware/vbus-sense.md), a sleeping target shown
+as "unplugged or powered off" has had its USB power cut, so a keypress can't
+wake it.
+
 **Status LED dark?** The board probably has its LED on another pin
 (ESP32-S3-DevKitC-1 v1.1 boards use GPIO38). Set it in
 [Board settings](firmware.md#board-settings).

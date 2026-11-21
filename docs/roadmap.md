@@ -56,7 +56,8 @@ things worth doing, kept in one place so they don't get lost.
 
 ## Firmware
 
-- [ ] Test waking a sleeping target with a keypress (remote wakeup).
+- [x] Test waking a sleeping target with a keypress (remote wakeup): works
+      on an OptiPlex 5090 running Windows 11, once the BIOS allows USB wake.
 - [x] Test a target that puts the mouse in boot protocol: the OptiPlex 5090's
       BIOS setup, One-Time Boot menu, and SupportAssist all do.
 - [x] Tell the viewer when the target ignores the absolute pointer, so
