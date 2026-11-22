@@ -37,7 +37,6 @@ things worth doing, kept in one place so they don't get lost.
       risk" (`docs/experiments/`).
   - [x] MJPG at 1080p60 on the MS2130 stick's USB 3 mode: patched, flashed,
         and verified (`docs/experiments/ms2130-mjpg-usb3.md`).
-  - [ ] Remove the UGREEN dongle's startup logo (not yet located in its image).
   - [ ] Maybe: 1080p60 on the stick's USB 2 mode (bandwidth may not allow it).
 - [x] **Install from the browser:** an "Install CodeBlue" button on the docs
       site using ESP Web Tools (the flasher ESPHome uses), with a manifest per
