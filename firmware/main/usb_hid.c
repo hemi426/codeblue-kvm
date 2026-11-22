@@ -346,23 +346,34 @@ void usb_hid_wake(void)
 
 /* ---- TinyUSB callbacks (TinyUSB task) ---------------------------------- */
 
+/* The target has forgotten everything it was sent. Keep the host's state,
+ * but mark nothing as delivered, so whatever is still held is sent again
+ * once the target has the device configured. */
+static void forget_delivered(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    drop_motion_locked();
+    memset(&s_kbd_sent, 0, sizeof s_kbd_sent);
+    s_rel_sent_buttons = s_abs_sent_buttons = 0;
+    xSemaphoreGive(s_lock);
+    s_abs_in_flight = false; /* the reset dropped it */
+}
+
 static void on_usb_event(tinyusb_event_t *event, void *arg)
 {
     (void)arg;
     switch (event->id) {
     case TINYUSB_EVENT_ATTACHED:
+        /* Each enumeration ends here, including the one after a bus reset,
+         * which TinyUSB doesn't report as a detach (e.g., an OS taking over
+         * from firmware setup screens). An absolute report in flight then
+         * was dropped and will never complete, which would leave
+         * TS_ABS_UNREAD set for good, so start afresh. */
+        forget_delivered();
         break;
     case TINYUSB_EVENT_DETACHED:
-        /* The target forgot everything (bus reset or unplug). Keep the host's
-         * state, but mark nothing as delivered, so whatever is still held is
-         * sent again once the target enumerates the device. */
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        drop_motion_locked();
-        memset(&s_kbd_sent, 0, sizeof s_kbd_sent);
-        s_rel_sent_buttons = s_abs_sent_buttons = 0;
-        xSemaphoreGive(s_lock);
+        forget_delivered();
         s_kbd_leds = 0;
-        s_abs_in_flight = false; /* the reset dropped it */
         break;
     case TINYUSB_EVENT_SUSPENDED:
         s_remote_wakeup_enabled = event->suspended.remote_wakeup;

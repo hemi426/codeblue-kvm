@@ -67,6 +67,13 @@ The first release:
 
 ## Firmware
 
+### [0.4.1](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.4.1) (2026-11-21)
+
+- Fixed: going straight from firmware setup screens (which don't read the
+  absolute pointer) into an operating system left the board reporting
+  `abs_unread`, so the viewer's **Mouse: Auto** stayed on relative. The
+  board now starts afresh each time the target enumerates it.
+
 ### [0.4.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.4.0) (2026-11-19)
 
 - Updates keep the board's settings: releases now include the bootloader,
