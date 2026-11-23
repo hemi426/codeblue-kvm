@@ -100,6 +100,12 @@ things worth doing, kept in one place so they don't get lost.
       An fps field shows **No video** when frames stop. Verified against the
       UGREEN.
 - [ ] Horizontal scrolling (`pan`) from tilt wheels and touchpads.
+- [ ] Check for updates: an option in **Viewer options**, off by default.
+      When on, the viewer checks GitHub's releases about once a day and
+      shows a quiet note in the status bar when a newer viewer, or newer
+      firmware than the connected board's, is out, linking to the docs
+      site's home page (which has both installers). Notify only: no pop-ups, no downloads, no installs.
+      Offline, it fails silently and never slows anything down.
 - [ ] Polish: dropdown widths, better DirectShow device listing, settings per
       capture device, and a view of the modes a dongle offers. Ideally the
       Size and FPS lists come from the dongle itself: the fixed list offers

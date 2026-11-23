@@ -28,7 +28,7 @@ desktop computer (they're the browsers that can talk to serial ports).
 <!-- The build time in the URL gives each site build its own manifest
      address, so browsers never install from a cached, older manifest. -->
 <esp-web-install-button manifest="/codeblue-kvm/install/codeblue.json?build={{ site.time | date: '%s' }}">
-  <button slot="activate" class="btn btn-primary">Install CodeBlue firmware</button>
+  <button slot="activate" class="btn btn-primary">Install CodeBlue firmware{% if site.data.firmware.version %} {{ site.data.firmware.version }}{% endif %}</button>
 </esp-web-install-button>
 </p>
 <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>

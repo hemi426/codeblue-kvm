@@ -122,6 +122,9 @@ jobs:
           }
           JSON
           jq . docs/install/codeblue.json
+          # The Firmware page shows the version on its install button.
+          mkdir -p docs/_data
+          printf 'version: "%s"\n' "$v" > docs/_data/firmware.yml
           ls -l docs/install
           echo "Installer serves firmware $v; updating $keeps." >> "$GITHUB_STEP_SUMMARY"
 
