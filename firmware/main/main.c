@@ -5,7 +5,8 @@
  * target (usb_hid.c). The UART port talks to the viewer with the binary
  * protocol in docs/development/protocol.md (session.c, frame.c). The RGB LED
  * shows status, or whatever colour the viewer asks for (status_led.c). Board
- * settings such as the LED's pin are saved in flash (settings.c).
+ * settings such as the LED's pin are saved in flash (settings.c). Keep awake
+ * stops the target sleeping while nobody's using it (keepawake.c).
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */

@@ -29,8 +29,8 @@ internal sealed class BinaryLink : IKvmLink
         public const byte Hello = 0x01, Heartbeat = 0x02, SessionConfig = 0x03;
         public const byte Keyboard = 0x10, MouseAbs = 0x20, MouseRel = 0x21;
         public const byte Led = 0x30, LedBrightness = 0x31, ReleaseAll = 0x40;
-        public const byte SettingGet = 0x50, SettingSet = 0x51;
-        public const byte Info = 0x81, DeviceHeartbeat = 0x82, TargetStatus = 0x90, Setting = 0xA0, Error = 0xE0;
+        public const byte SettingGet = 0x50, SettingSet = 0x51, KeepAwake = 0x52;
+        public const byte Info = 0x81, DeviceHeartbeat = 0x82, TargetStatus = 0x90, Setting = 0xA0, KeepAwakeStatus = 0xA1, Error = 0xE0;
     }
 
     private readonly SerialTransport _transport;
@@ -64,6 +64,8 @@ internal sealed class BinaryLink : IKvmLink
     public bool SupportsAbsolute { get; private set; }
     public bool SupportsVbusSense { get; private set; }
     public bool SupportsSettings { get; private set; }
+    public bool SupportsKeepAwake { get; private set; }
+    public KeepAwakeStatus? KeepAwake { get; private set; }
 
     public bool AbsoluteMouse
     {
@@ -83,6 +85,7 @@ internal sealed class BinaryLink : IKvmLink
 
     public event Action<Exception>? Faulted;
     public event Action<TargetStatus>? TargetStatusChanged;
+    public event Action<KeepAwakeStatus>? KeepAwakeChanged;
     public event Action<string>? Diagnostic;
 
     private BinaryLink(SerialTransport transport)
@@ -168,6 +171,7 @@ internal sealed class BinaryLink : IKvmLink
                 SupportsAbsolute = (caps & 0x0001) != 0;
                 SupportsVbusSense = (caps & 0x0008) != 0;
                 SupportsSettings = (caps & 0x0010) != 0;
+                SupportsKeepAwake = (caps & 0x0020) != 0;
                 Diagnostic?.Invoke($"board: {ProtocolName}, protocol {p[0]}.{p[1]}, " +
                                    $"capabilities 0x{caps:X4}, LED {p[7]}%");
                 _gotInfo.Set();
@@ -192,6 +196,14 @@ internal sealed class BinaryLink : IKvmLink
                 TaskCompletionSource<SettingReply>? waiter;
                 lock (_settingWaiters) _settingWaiters.TryDequeue(out waiter);
                 waiter?.TrySetResult(reply);
+                break;
+
+            case Msg.KeepAwakeStatus when p.Length >= 3:
+                var keepAwake = new KeepAwakeStatus((KeepAwakeState)p[0],
+                                                    BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(1)),
+                                                    Environment.TickCount64);
+                KeepAwake = keepAwake;
+                KeepAwakeChanged?.Invoke(keepAwake);
                 break;
 
             case Msg.DeviceHeartbeat:
@@ -387,6 +399,11 @@ internal sealed class BinaryLink : IKvmLink
     {
         LedBrightness = Math.Clamp(percent, 0, 100);
         Send(Msg.LedBrightness, [(byte)LedBrightness.Value, persist ? (byte)1 : (byte)0]);
+    }
+
+    public void SetKeepAwake(bool on)
+    {
+        if (SupportsKeepAwake) Send(Msg.KeepAwake, [on ? (byte)1 : (byte)0]);
     }
 
     public Task<SettingReply> GetSettingAsync(BoardSetting setting) =>

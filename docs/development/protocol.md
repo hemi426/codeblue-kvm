@@ -18,6 +18,8 @@ uses what the other's capabilities and minor version offer.
 - **1.0** (firmware 0.1.1): the protocol as first released.
 - **1.1** (firmware 0.3.0): board settings (`SETTING_GET`, `SETTING_SET`,
   `SETTING`, capability bit 4), and `abs_unread` in `TARGET_STATUS`.
+- **1.2** (firmware 0.5.0): keep awake (`KEEP_AWAKE`, `KEEP_AWAKE_STATUS`,
+  capability bit 5, settings 3 to 6), and setting result 5.
 
 ### Requirements
 
@@ -130,6 +132,7 @@ the target indefinitely.
 | `0x40` | `RELEASE_ALL` | none |
 | `0x50` | `SETTING_GET` | `key` u8 (1.1) |
 | `0x51` | `SETTING_SET` | `key` u8, `value` i16 (1.1) |
+| `0x52` | `KEEP_AWAKE` | `on` u8 (1.2) |
 
 #### `SESSION_CONFIG`
 
@@ -203,13 +206,32 @@ value at once and saves it in flash, so it also applies from power-on.
 |-----|---------|--------|
 | 1 | Status LED GPIO | A GPIO number, or -1 for none |
 | 2 | VBUS sense GPIO | A GPIO number, or -1 for none (no VBUS sense) |
+| 3 | Keep awake mode (1.2) | 0 hidden key (taps F15), 1 nudge (one count over and back), 2 wander (a short glide and back), 3 scroll tick (one detent and back), 4 mixed (one of the others at random each time). Default 4. |
+| 4 | Keep awake idle delay (1.2) | Seconds without input before it starts acting, 10 to 3600. Default 120. |
+| 5 | Keep awake interval, shortest (1.2) | Seconds, 5 to 3600. Default 15. |
+| 6 | Keep awake interval, longest (1.2) | Seconds, 5 to 3600. Default 60. Each wait is random between the two. |
 
-For either key, -2 forgets the saved value and goes back to the build
-default. The device refuses pins it can't use: 0, 3, 45, and 46 (strapping),
+For any key, -2 forgets the saved value and goes back to the default. A
+value outside a setting's range is refused (result 5), and so is an
+interval whose shortest would pass its longest (result 3); to move both,
+widen first. The device refuses pins it can't use: 0, 3, 45, and 46 (strapping),
 19 and 20 (USB), 43 and 44 (the UART), 22 to 37 (flash and PSRAM, or not
 present), and anything outside 0 to 48. VBUS sense also refuses 47 and 48,
 which run at 1.8 V on modules with 1.8 V flash. The two settings can't share
 a pin.
+
+#### `KEEP_AWAKE`
+
+Turns keep awake on (`on` = 1) or off (0); the device answers with
+`KEEP_AWAKE_STATUS` (protocol 1.2; capability bit 5). Keep awake runs on the
+device, with or without a host: while the target has had no input for the
+idle delay (setting 4), the device makes a small input every interval
+(settings 5 and 6), as the mode (setting 3) says. Only real input from the
+host (`KEYBOARD`, `MOUSE_ABS`, `MOUSE_REL`) restarts the idle delay; a
+connected host that sends none doesn't. It never acts while the target is
+suspended or not connected (so it never wakes a target), or while a key or
+button is held. The on/off state isn't saved: keep awake is off whenever the
+device starts.
 
 ### Messages: device to host
 
@@ -219,6 +241,7 @@ a pin.
 | `0x82` | `HEARTBEAT` | none |
 | `0x90` | `TARGET_STATUS` | `flags` u8, `kbd_leds` u8 |
 | `0xA0` | `SETTING` | `key` u8, `value` i16, `result` u8 (1.1) |
+| `0xA1` | `KEEP_AWAKE_STATUS` | `state` u8, `seconds` u16 (1.2) |
 | `0xE0` | `ERROR` | `code` u8, `detail` u8 |
 
 #### `INFO`
@@ -237,6 +260,7 @@ such as `ESP32-S3-DevKitC-1`.
 | 2 | Persistent settings (`LED_BRIGHTNESS` with `persist`) |
 | 3 | VBUS sense (see "VBUS sense" below): a sense pin is set |
 | 4 | Board settings (`SETTING_GET` and `SETTING_SET`; 1.1) |
+| 5 | Keep awake (`KEEP_AWAKE`; settings 3 to 6; 1.2) |
 
 Capabilities are reported once, in `INFO`. After a `SETTING_SET` of the VBUS
 sense pin, the `SETTING` reply's `value` says whether bit 3 now applies (any
@@ -279,8 +303,25 @@ request went:
 | 0 | OK |
 | 1 | Unknown key |
 | 2 | The pin can't be used for this setting |
-| 3 | The other setting already uses that pin |
+| 3 | Clashes with another setting: the other pin setting uses that pin, or the keep awake interval's ends would be out of order |
 | 4 | Couldn't apply or save the value |
+| 5 | Out of the setting's range (1.2) |
+
+#### `KEEP_AWAKE_STATUS`
+
+Keep awake's state (protocol 1.2), sent after `HELLO`, in answer to
+`KEEP_AWAKE`, and whenever the state changes:
+
+| State | Meaning |
+|-------|---------|
+| 0 | Off |
+| 1 | Waiting: on, and `seconds` until it starts acting (counting from when this was sent) |
+| 2 | Active: on, and acting every interval |
+| 3 | Paused: on, but the target is suspended or not connected |
+
+While waiting, input pushes the end of the countdown back; the device sends
+a new status when it has moved by a second or more, so a host can count down
+between messages without being flooded while someone types.
 
 #### `ERROR`
 

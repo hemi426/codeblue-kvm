@@ -18,6 +18,9 @@ internal interface IKvmLink : IDisposable
     /// <summary>Raised (on a background thread) when the target's status changes. Never raised by links that can't tell.</summary>
     event Action<TargetStatus>? TargetStatusChanged;
 
+    /// <summary>Raised (on a background thread) when the board reports keep awake's state.</summary>
+    event Action<KeepAwakeStatus>? KeepAwakeChanged;
+
     /// <summary>Raised (on a background thread) with messages worth logging, such as errors the board reports.</summary>
     event Action<string>? Diagnostic;
 
@@ -45,6 +48,15 @@ internal interface IKvmLink : IDisposable
 
     /// <summary>True if the board's pin settings can be read and changed (firmware 0.3.0 and later).</summary>
     bool SupportsSettings { get; }
+
+    /// <summary>True if the board can keep the target awake (firmware 0.5.0 and later).</summary>
+    bool SupportsKeepAwake { get; }
+
+    /// <summary>Keep awake's last reported state, or null if the board hasn't said.</summary>
+    KeepAwakeStatus? KeepAwake { get; }
+
+    /// <summary>Turns keep awake on or off. The board answers with its new state (KeepAwakeChanged).</summary>
+    void SetKeepAwake(bool on);
 
     /// <summary>Reads a board setting. Fails with TimeoutException if the board doesn't answer.</summary>
     Task<SettingReply> GetSettingAsync(BoardSetting setting);
@@ -103,6 +115,40 @@ internal enum BoardSetting : byte
 {
     LedGpio = 1,
     VbusGpio = 2,
+    KeepAwakeMode = 3,
+    KeepAwakeIdleDelay = 4,  // seconds
+    KeepAwakeIntervalMin = 5, // seconds
+    KeepAwakeIntervalMax = 6, // seconds
+}
+
+/// <summary>How keep awake keeps the target awake (the KeepAwakeMode setting).</summary>
+internal enum KeepAwakeMode : short
+{
+    HiddenKey = 0,
+    Nudge = 1,
+    Wander = 2,
+    ScrollTick = 3,
+    Mixed = 4,
+}
+
+internal enum KeepAwakeState : byte
+{
+    Off = 0,
+    Waiting = 1, // on, counting down the idle delay
+    Active = 2,  // on, acting every interval
+    Paused = 3,  // on, but the target is asleep or not connected
+}
+
+/// <summary>
+/// Keep awake's state (KEEP_AWAKE_STATUS). For Waiting, Seconds is how long
+/// until it starts acting, as of ReceivedAtMs (Environment.TickCount64).
+/// </summary>
+internal readonly record struct KeepAwakeStatus(KeepAwakeState State, int Seconds, long ReceivedAtMs)
+{
+    public bool On => State != KeepAwakeState.Off;
+
+    /// <summary>Seconds left before it starts acting, counted down from when the board said.</summary>
+    public int SecondsLeft(long nowMs) => Math.Max(0, Seconds - (int)((nowMs - ReceivedAtMs) / 1000));
 }
 
 internal enum SettingResult : byte
@@ -112,6 +158,7 @@ internal enum SettingResult : byte
     BadPin = 2,
     Conflict = 3,
     ApplyFailed = 4,
+    OutOfRange = 5,
 }
 
 /// <summary>The board's answer to a setting request: the value in effect, and how the request went.</summary>

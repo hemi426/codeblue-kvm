@@ -16,6 +16,7 @@ static const char *TAG = "led";
 
 static led_strip_handle_t s_led;
 static uint8_t s_r, s_g, s_b;
+static bool s_flash;
 static uint8_t s_brightness = CONFIG_CODEBLUE_LED_BRIGHTNESS;
 
 static uint8_t scale(uint8_t v)
@@ -27,7 +28,11 @@ static void show(void)
 {
     if (!s_led)
         return;
-    led_strip_set_pixel(s_led, 0, scale(s_r), scale(s_g), scale(s_b));
+    static const uint8_t flash[3] = { LED_FLASH };
+    if (s_flash)
+        led_strip_set_pixel(s_led, 0, scale(flash[0]), scale(flash[1]), scale(flash[2]));
+    else
+        led_strip_set_pixel(s_led, 0, scale(s_r), scale(s_g), scale(s_b));
     led_strip_refresh(s_led);
 }
 
@@ -89,6 +94,14 @@ void status_led_set(uint8_t r, uint8_t g, uint8_t b)
     s_r = r;
     s_g = g;
     s_b = b;
+    show();
+}
+
+void status_led_flash(bool on)
+{
+    if (on == s_flash)
+        return;
+    s_flash = on;
     show();
 }
 

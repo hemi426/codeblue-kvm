@@ -4,9 +4,15 @@ The firmware and the viewer are released separately, each with its own
 version. Any firmware and viewer that speak the same protocol version work
 together (the handshake checks it); every release so far speaks protocol 1.
 Newer features need both sides to have them: Board settings need firmware
-0.3.0 or later.
+0.3.0 or later, and keep awake needs firmware 0.5.0.
 
 ## Viewer
+
+### [0.5.0](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.5.0) (2026-11-22)
+
+- **Keep awake:** a toolbar button that keeps the target from sleeping or
+  locking while it's idle, with its settings under the **▾** beside it and
+  its state in the status bar (firmware 0.5.0 or later).
 
 ### [0.4.0](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.4.0) (2026-11-19)
 
@@ -66,6 +72,17 @@ The first release:
   viewer uses.
 
 ## Firmware
+
+### [0.5.0](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.5.0) (2026-11-22)
+
+- **Keep awake** (protocol 1.2): after a set time without input, the board
+  makes a small, harmless input (a hidden key, a nudge, a glide, a scroll
+  notch, or a mix) at random intervals, so the target doesn't sleep or lock.
+  It runs on the board, with or without the viewer, never wakes a sleeping
+  target, and is off whenever the board starts. Its settings are saved on
+  the board. While it's on, the status LED shows a white heartbeat, faster
+  while it's acting.
+- `tools/cb_test.py`: `keep-awake on|off`, and the keep awake settings.
 
 ### [0.4.1](https://github.com/hemi426/codeblue-kvm/releases/tag/firmware-v0.4.1) (2026-11-21)
 

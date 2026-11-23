@@ -51,10 +51,15 @@ internal sealed class MainForm : Form
     private readonly ComboBox _portBox, _deviceBox;
     private readonly CheckBox _videoOnlyBox;
     private readonly Button _connectButton, _captureButton, _cadButton, _boardButton;
+    // Keep awake: a toggle (the board's state) with a settings arrow beside it.
+    private readonly CheckBox _keepAwakeButton;
+    private readonly Button _keepAwakeMenu;
+    private bool _syncingKeepAwake; // set while showing the board's state, so it isn't sent back
+    private readonly System.Windows.Forms.Timer _keepAwakeTimer; // ticks the countdown
     // Status bar: the main message on the left, fixed fields on the right.
     private readonly Panel _statusBar;
     private readonly Label _status;
-    private readonly Label _fpsField, _mouseField, _numField, _capsField, _scrollField;
+    private readonly Label _keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField;
     private readonly ToolTip _statusTips = new();
     private readonly System.Windows.Forms.Timer _transientTimer;
     private string _baseStatus = ""; // what the main message shows when no transient message is up
@@ -129,6 +134,40 @@ internal sealed class MainForm : Form
         _boardButton = MakeButton("Board settings...", (_, _) => ShowBoardSettings());
         var optionsButton = MakeButton("Viewer options...", (_, _) => ShowViewerOptions());
 
+        // A split button: the toggle, and an arrow for its settings, flush together.
+        _keepAwakeButton = new CheckBox
+        {
+            Text = "Keep awake",
+            Appearance = Appearance.Button,
+            AutoSize = true,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Margin = new Padding(2, 2, 0, 2),
+        };
+        _keepAwakeButton.CheckedChanged += (_, _) =>
+        {
+            if (!_syncingKeepAwake) _link?.SetKeepAwake(_keepAwakeButton.Checked);
+        };
+        _keepAwakeMenu = new Button
+        {
+            Text = "\u25BE", // ▾
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(0, 2, 2, 2),
+            Padding = new Padding(2, 0, 2, 0),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom, // as tall as the toggle beside it
+        };
+        _keepAwakeMenu.Click += (_, _) => ShowKeepAwakeSettings();
+        var keepAwake = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        keepAwake.Controls.AddRange([_keepAwakeButton, _keepAwakeMenu]);
+        _keepAwakeTimer = new System.Windows.Forms.Timer { Interval = 500 };
+        _keepAwakeTimer.Tick += (_, _) => UpdateKeepAwakeField();
+
         _toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -141,7 +180,7 @@ internal sealed class MainForm : Form
             _connectButton,
             MakeLabel("Port"), _portBox, refreshButton, _videoOnlyBox,
             MakeLabel("Video"), _deviceBox,
-            _captureButton, _cadButton, snapshotButton, fullscreenButton,
+            _captureButton, _cadButton, keepAwake, snapshotButton, fullscreenButton,
             _boardButton, optionsButton,
         ]);
 
@@ -155,6 +194,7 @@ internal sealed class MainForm : Form
             AutoEllipsis = true,
         };
         // Fixed widths (sized for the bold, widest text), so nothing shifts as fields light up.
+        _keepAwakeField = MakeStatusField("Keep awake in 60:00", statusHeight);
         _fpsField = MakeStatusField("Video off", statusHeight);
         _statusTips.SetToolTip(_fpsField, "Frames per second shown from the capture dongle");
         _mouseField = MakeStatusField("Mouse: Absolute (Auto)", statusHeight);
@@ -172,7 +212,7 @@ internal sealed class MainForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
-        fields.Controls.AddRange([_fpsField, _mouseField, _numField, _capsField, _scrollField]);
+        fields.Controls.AddRange([_keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField]);
         _statusBar = new Panel { Dock = DockStyle.Bottom, Height = statusHeight };
         _statusBar.Controls.Add(_status); // fills what the fields leave
         _statusBar.Controls.Add(fields);
@@ -349,11 +389,71 @@ internal sealed class MainForm : Form
             _statusTips.SetToolTip(_mouseField, MouseModeReason(setting, absolute));
         }
 
+        UpdateKeepAwake();
+
         // Lock keys only mean something while the target has the keyboard awake.
         var t = _link?.TargetStatus is { Mounted: true, Suspended: false } s ? s : default;
         SetLockField(_numField, t.NumLock);
         SetLockField(_capsField, t.CapsLock);
         SetLockField(_scrollField, t.ScrollLock);
+    }
+
+    /// <summary>The Keep awake button and status field, from what the board last said.</summary>
+    private void UpdateKeepAwake()
+    {
+        bool supported = _link is { SupportsKeepAwake: true };
+        _keepAwakeButton.Enabled = _keepAwakeMenu.Enabled = supported;
+        _syncingKeepAwake = true;
+        _keepAwakeButton.Checked = supported && _link!.KeepAwake is { On: true };
+        _syncingKeepAwake = false;
+        _statusTips.SetToolTip(_keepAwakeButton, supported
+            ? "Keeps the target from sleeping or locking while nobody's using it. It runs on the board, " +
+              "so it carries on after you disconnect."
+            : _link is null ? "Keep awake, once connected" : "Keep awake needs firmware 0.5.0 or later");
+        _statusTips.SetToolTip(_keepAwakeMenu, "Keep awake settings");
+        _keepAwakeField.Visible = supported;
+        UpdateKeepAwakeField();
+    }
+
+    private void UpdateKeepAwakeField()
+    {
+        var status = _link is { SupportsKeepAwake: true } link ? link.KeepAwake : null;
+        string text, tip;
+        bool bold = false;
+        switch (status?.State)
+        {
+            case KeepAwakeState.Waiting:
+                int left = status.Value.SecondsLeft(Environment.TickCount64);
+                text = $"Keep awake in {left / 60}:{left % 60:00}";
+                tip = "Keep awake starts once the target has had no input for a while; any input restarts the countdown";
+                break;
+            case KeepAwakeState.Active:
+                text = "Keeping awake";
+                tip = "Keep awake is acting now, every so often, until there's input again";
+                bold = true;
+                break;
+            case KeepAwakeState.Paused:
+                text = "Keep awake paused";
+                tip = "The target is asleep or not connected; keep awake never wakes it";
+                break;
+            default:
+                text = "Keep awake off";
+                tip = "Turn it on with the Keep awake button";
+                break;
+        }
+        _keepAwakeField.Text = text;
+        _keepAwakeField.Font = bold ? BoldFont : Font;
+        _keepAwakeField.ForeColor = status is { State: KeepAwakeState.Waiting or KeepAwakeState.Active }
+            ? SystemColors.ControlText : SystemColors.GrayText;
+        _statusTips.SetToolTip(_keepAwakeField, tip);
+        _keepAwakeTimer.Enabled = status?.State == KeepAwakeState.Waiting;
+    }
+
+    private void ShowKeepAwakeSettings()
+    {
+        if (_link is not { } link) return;
+        using var dialog = new KeepAwakeForm(this, link);
+        dialog.ShowDialog(this);
     }
 
     private string MouseModeReason(string setting, bool absolute)
@@ -546,6 +646,10 @@ internal sealed class MainForm : Form
         link.TargetStatusChanged += status => PostToUi(() =>
         {
             if (_link == link) OnTargetStatus(status);
+        });
+        link.KeepAwakeChanged += _ => PostToUi(() =>
+        {
+            if (_link == link) UpdateKeepAwake();
         });
         WriteLog($"codeblue: link open: {link.ProtocolName} on {port}");
 
@@ -1256,6 +1360,7 @@ internal sealed class MainForm : Form
         _heartbeatTimer.Dispose();
         _reconnectTimer.Dispose();
         _fpsTimer.Dispose();
+        _keepAwakeTimer.Dispose();
         // Disconnect (on closing) started the stop. Give it a moment; if libVLC is
         // stuck, leave it: releasing libVLC would wait on the stuck player forever,
         // and the process ending takes care of it anyway.

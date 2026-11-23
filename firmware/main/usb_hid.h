@@ -33,6 +33,9 @@ void usb_hid_mouse_rel(uint8_t buttons, int16_t dx, int16_t dy, int8_t wheel, in
 /* Absolute position, 0-32767 on each axis across the target's screen. */
 void usb_hid_mouse_abs(uint16_t x, uint16_t y, uint8_t buttons, int8_t wheel, int8_t pan);
 
+/* True while any key or mouse button is held. */
+bool usb_hid_input_held(void);
+
 /* Releases every key and button. */
 void usb_hid_release_all(void);
 

@@ -115,8 +115,11 @@ build stops with that instruction if it notices a mismatch.
 ## Status LED
 
 The RGB LED shows CodeBlue's status. Blue: waiting for the viewer. Green:
-the viewer is connected. Set its brightness in the viewer's
-**Board settings**; each board saves its own setting.
+the viewer is connected. While [keep awake](viewer.md#keep-awake) is on, it
+also beats like a heart: two quick white flashes, every 3 seconds while
+waiting and every 1.5 seconds while acting.
+Set its brightness in the viewer's **Board settings**; each board saves its
+own setting (at 0%, the LED stays dark, flash included).
 
 Most boards have other LEDs too, which CodeBlue doesn't control:
 
@@ -143,6 +146,8 @@ python tools/cb_test.py COM10 type "hello"  # types on the target
 python tools/cb_test.py COM10 timeout-test  # checks the board lets go when the host goes quiet
 python tools/cb_test.py COM10 get           # board settings: LED and VBUS sense pins
 python tools/cb_test.py COM10 set vbus-gpio 21  # or a GPIO, none, or default; led-gpio too
+python tools/cb_test.py COM10 keep-awake on     # or off; settings: ka-mode, ka-idle, ka-interval-min/-max
+python tools/cb_test.py COM10 watch             # status changes, keep awake's included
 python tools/cb_test.py -h                  # everything else
 ```
 

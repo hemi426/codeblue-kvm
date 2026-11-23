@@ -29,6 +29,7 @@ board is back.
 | **Video** | The capture dongle. |
 | **Capture** | Sends keyboard and mouse to the target. |
 | **Ctrl+Alt+Del** | Sends Ctrl+Alt+Del to the target (you can't type it; see below). |
+| **Keep awake** | Keeps the target from sleeping or locking while it's idle (see below). Pressed while it's on; **▾** opens its settings. Needs firmware 0.5.0 or later. |
 | **Snapshot** | Saves the current frame to Pictures\CodeBlue. |
 | **Full screen** | Fills the screen with the target. |
 | **Board settings...** | Settings kept on the board (see below). Needs a connected board. |
@@ -77,11 +78,45 @@ match, or **Custom**. If you switch between boards of different kinds, it
 shows the one you chose last until you change it (the pins are always read
 from the board).
 
+## Keep awake
+
+**Keep awake** stops the target sleeping or locking while nobody's using it:
+once the target has had no input for a while, the board makes a small,
+harmless input every so often. It runs on the board, so:
+
+- **It carries on after you disconnect** (or unplug your computer), for as
+  long as the board stays plugged into the target. Reconnect and the button
+  shows it's still on.
+- **It acts while you're connected, too.** Only input you send pauses it;
+  watching the screen, even with the viewer connected, doesn't. Capture and
+  use the target and it waits again; leave it, and after the idle delay you
+  may see the pointer drift a little.
+- **It's off whenever the board starts,** so it can't come back on by
+  surprise after the board has been unplugged.
+- **It never wakes a sleeping target,** and it waits while you hold a key or
+  button.
+- **The board's LED shows a white heartbeat** while it's on (every 3 seconds
+  while waiting, every 1.5 seconds while acting), so a board left plugged in
+  doesn't keep it on unnoticed.
+
+The **▾** next to the button opens its settings, which are saved on the
+board:
+
+| Setting | What it does |
+|---------|--------------|
+| **Mode** | **Mixed** (the default) picks one of the others at random each time. **Hidden key** taps F15, which no real keyboard has. **Nudge** moves the pointer one pixel over and back. **Wander** glides it a short way and back. **Scroll tick** scrolls one notch down and back up. |
+| **Start after** | Seconds without input before it starts (120 by default). |
+| **Then every** | How often it acts once started: a random wait between the two numbers (15 to 60 seconds by default). |
+
 ## Status bar
 
 The status bar shows the connection and the target's state on the left, and
 on the right:
 
+- **Keep awake:** **Keep awake in 1:42** while it counts down, **Keeping
+  awake** once it's acting, **Keep awake paused** while the target is asleep
+  or not connected, or **Keep awake off**. Shown with firmware 0.5.0 or
+  later.
 - **Frame rate:** frames per second from the dongle; **No video** when frames
   stop arriving, and **Video off** when not connected.
 - **Mouse:** the mode in use, with **(Auto)** when Auto chose it. Hover over

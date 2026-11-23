@@ -264,6 +264,16 @@ void usb_hid_mouse_abs(uint16_t x, uint16_t y, uint8_t buttons, int8_t wheel, in
     xSemaphoreGive(s_lock);
 }
 
+bool usb_hid_input_held(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    static const uint8_t none[6] = { 0 };
+    bool held = s_kbd.modifiers || memcmp(s_kbd.keys, none, sizeof none) != 0 || s_rel.buttons ||
+                s_abs.buttons;
+    xSemaphoreGive(s_lock);
+    return held;
+}
+
 void usb_hid_release_all(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);

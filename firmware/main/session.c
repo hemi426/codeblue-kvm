@@ -14,6 +14,7 @@
 #include "freertos/task.h"
 
 #include "frame.h"
+#include "keepawake.h"
 #include "settings.h"
 #include "status_led.h"
 #include "usb_hid.h"
@@ -24,7 +25,7 @@ static const char *TAG = "session";
 #define UART_BAUD 921600
 
 #define PROTOCOL_MAJOR 1
-#define PROTOCOL_MINOR 1
+#define PROTOCOL_MINOR 2
 
 #define HEARTBEAT_MS 100
 #define STATUS_MS 1000
@@ -36,6 +37,7 @@ static const char *TAG = "session";
 #define CAP_PERSISTENT (1u << 2)
 #define CAP_VBUS_SENSE (1u << 3)
 #define CAP_SETTINGS   (1u << 4)
+#define CAP_KEEP_AWAKE (1u << 5)
 
 enum {
     MSG_HELLO = 0x01,
@@ -49,11 +51,13 @@ enum {
     MSG_RELEASE_ALL = 0x40,
     MSG_SETTING_GET = 0x50,
     MSG_SETTING_SET = 0x51,
+    MSG_KEEP_AWAKE = 0x52,
 
     MSG_INFO = 0x81,
     MSG_DEV_HEARTBEAT = 0x82,
     MSG_TARGET_STATUS = 0x90,
     MSG_SETTING = 0xA0,
+    MSG_KEEP_AWAKE_STATUS = 0xA1,
     MSG_ERROR = 0xE0,
 };
 
@@ -89,7 +93,7 @@ static void send_info(void)
 {
     unsigned major = 0, minor = 0, patch = 0;
     sscanf(esp_app_get_description()->version, "%u.%u.%u", &major, &minor, &patch);
-    uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT | CAP_SETTINGS;
+    uint16_t caps = CAP_ABS_MOUSE | CAP_REL_MOUSE | CAP_PERSISTENT | CAP_SETTINGS | CAP_KEEP_AWAKE;
     if (usb_hid_has_vbus_sense())
         caps |= CAP_VBUS_SENSE;
 
@@ -117,6 +121,15 @@ static void send_setting(uint8_t key, uint8_t result)
     int16_t v = settings_get(key);
     const uint8_t p[4] = { key, (uint8_t)(v & 0xFF), (uint8_t)((uint16_t)v >> 8), result };
     send(MSG_SETTING, p, sizeof p);
+}
+
+static void send_keepawake_status(void)
+{
+    (void)keepawake_report_due(); /* this counts as the report, so it isn't sent twice */
+    uint16_t seconds;
+    uint8_t state = keepawake_state(&seconds);
+    const uint8_t p[3] = { state, (uint8_t)(seconds & 0xFF), (uint8_t)(seconds >> 8) };
+    send(MSG_KEEP_AWAKE_STATUS, p, sizeof p);
 }
 
 static void send_status(uint8_t flags, uint8_t leds)
@@ -153,6 +166,7 @@ static void on_hello(const uint8_t *p, size_t len)
         return;
     s_last_rx_ms = now_ms();
     send_status(usb_hid_status(), usb_hid_kbd_leds());
+    send_keepawake_status(); /* it may have been left on by an earlier session */
     status_led_set(LED_HOST);
 }
 
@@ -199,6 +213,7 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
         uint8_t keys[6] = { 0 };
         memcpy(keys, &p[2], count);
         wake_if_pressed(p[0] != 0 || count != 0);
+        keepawake_input();
         usb_hid_keyboard(p[0], keys);
         break;
     }
@@ -208,6 +223,7 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
         uint16_t x = (uint16_t)(p[0] | (p[1] << 8));
         uint16_t y = (uint16_t)(p[2] | (p[3] << 8));
         wake_if_pressed(p[4] != 0);
+        keepawake_input();
         usb_hid_mouse_abs(x, y, p[4], (int8_t)p[5], (int8_t)p[6]);
         break;
     }
@@ -217,6 +233,7 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
         int16_t dx = (int16_t)(p[0] | (p[1] << 8));
         int16_t dy = (int16_t)(p[2] | (p[3] << 8));
         wake_if_pressed(p[4] != 0);
+        keepawake_input();
         usb_hid_mouse_rel(p[4], dx, dy, (int8_t)p[5], (int8_t)p[6]);
         break;
     }
@@ -237,8 +254,7 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
 
     case MSG_SETTING_GET:
         NEED(1);
-        send_setting(p[0], p[0] == SETTING_LED_GPIO || p[0] == SETTING_VBUS_GPIO ? SETTING_OK
-                                                                                 : SETTING_ERR_UNKNOWN);
+        send_setting(p[0], settings_known(p[0]) ? SETTING_OK : SETTING_ERR_UNKNOWN);
         break;
 
     case MSG_SETTING_SET: {
@@ -247,6 +263,12 @@ static void handle(uint8_t type, const uint8_t *p, size_t len)
         send_setting(p[0], (uint8_t)settings_set(p[0], v));
         break;
     }
+
+    case MSG_KEEP_AWAKE:
+        NEED(1);
+        keepawake_set_enabled(p[0] == 1);
+        send_keepawake_status();
+        break;
 
     default:
         send_error(ERR_UNKNOWN_TYPE, type);
@@ -273,6 +295,7 @@ static void session_task(void *arg)
         }
 
         usb_hid_poll();
+        keepawake_poll(); /* with or without a viewer: that's the point */
 
         if (!s_active)
             continue;
@@ -283,6 +306,8 @@ static void session_task(void *arg)
             continue;
         }
 
+        if (keepawake_report_due())
+            send_keepawake_status();
         uint8_t flags = usb_hid_status(), leds = usb_hid_kbd_leds();
         if (flags != s_last_flags || leds != s_last_leds || now - s_last_status_ms >= STATUS_MS)
             send_status(flags, leds);

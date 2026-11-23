@@ -4,10 +4,12 @@
 #include "settings.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "esp_log.h"
 #include "nvs.h"
 
+#include "keepawake.h"
 #include "status_led.h"
 #include "usb_hid.h"
 
@@ -19,6 +21,30 @@ static const char *TAG = "settings";
 
 static int16_t s_led_gpio = CONFIG_CODEBLUE_LED_GPIO;
 static int16_t s_vbus_gpio = CONFIG_CODEBLUE_VBUS_GPIO;
+
+/* Keep awake's settings: plain numbers with a range and a default. */
+typedef struct {
+    uint8_t key;
+    const char *nvs_key;
+    int16_t min, max, def;
+    int16_t value;
+} number_t;
+
+static number_t s_numbers[] = {
+    { SETTING_KA_MODE, "ka_mode", 0, KA_MODE_COUNT - 1, KA_MODE_MIXED, KA_MODE_MIXED },
+    { SETTING_KA_IDLE_DELAY, "ka_idle", 10, 3600, 120, 120 },
+    { SETTING_KA_INTERVAL_MIN, "ka_imin", 5, 3600, 15, 15 },
+    { SETTING_KA_INTERVAL_MAX, "ka_imax", 5, 3600, 60, 60 },
+};
+#define NUMBER_COUNT (sizeof s_numbers / sizeof s_numbers[0])
+
+static number_t *number(uint8_t key)
+{
+    for (size_t i = 0; i < NUMBER_COUNT; i++)
+        if (s_numbers[i].key == key)
+            return &s_numbers[i];
+    return NULL;
+}
 
 /* GPIOs the ESP32-S3 can't spare on a DevKitC-style board: the strapping
  * pins (0, 3, 45, 46), the native USB port (19, 20), the SPI flash (26 to
@@ -56,7 +82,8 @@ static int16_t build_default(uint8_t key)
 
 static const char *nvs_key(uint8_t key)
 {
-    return key == SETTING_LED_GPIO ? NVS_KEY_LED_GPIO : NVS_KEY_VBUS_GPIO;
+    number_t *n = number(key);
+    return n ? n->nvs_key : key == SETTING_LED_GPIO ? NVS_KEY_LED_GPIO : NVS_KEY_VBUS_GPIO;
 }
 
 static void load(nvs_handle_t nvs, uint8_t key, int16_t *value)
@@ -68,12 +95,23 @@ static void load(nvs_handle_t nvs, uint8_t key, int16_t *value)
 
 void settings_init(void)
 {
+
     nvs_handle_t nvs;
     if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs) == ESP_OK) {
         load(nvs, SETTING_LED_GPIO, &s_led_gpio);
         load(nvs, SETTING_VBUS_GPIO, &s_vbus_gpio);
+        for (size_t i = 0; i < NUMBER_COUNT; i++) {
+            number_t *n = &s_numbers[i];
+            int16_t v;
+            if (nvs_get_i16(nvs, n->nvs_key, &v) == ESP_OK && v >= n->min && v <= n->max)
+                n->value = v;
+        }
         nvs_close(nvs);
     }
+    /* Keep the interval's ends in order whatever was saved. */
+    number_t *lo = number(SETTING_KA_INTERVAL_MIN), *hi = number(SETTING_KA_INTERVAL_MAX);
+    if (lo->value > hi->value)
+        lo->value = hi->value;
     /* A saved pin that clashes with the other one (say, a saved VBUS pin
      * that a later LED default lands on) loses to the LED. */
     if (s_vbus_gpio >= 0 && s_vbus_gpio == s_led_gpio) {
@@ -82,8 +120,16 @@ void settings_init(void)
     }
 }
 
+bool settings_known(uint8_t key)
+{
+    return key == SETTING_LED_GPIO || key == SETTING_VBUS_GPIO || number(key) != NULL;
+}
+
 int16_t settings_get(uint8_t key)
 {
+    number_t *n = number(key);
+    if (n)
+        return n->value;
     switch (key) {
     case SETTING_LED_GPIO: return s_led_gpio;
     case SETTING_VBUS_GPIO: return s_vbus_gpio;
@@ -105,8 +151,27 @@ static bool save(uint8_t key, int16_t value, bool forget)
     return err == ESP_OK;
 }
 
+static setting_result_t set_number(number_t *n, int16_t value)
+{
+    bool forget = (value == SETTING_DEFAULT);
+    if (forget)
+        value = n->def;
+    if (value < n->min || value > n->max)
+        return SETTING_ERR_RANGE;
+    /* The interval's minimum can't pass its maximum, or the other way round. */
+    if ((n->key == SETTING_KA_INTERVAL_MIN && value > settings_get(SETTING_KA_INTERVAL_MAX)) ||
+        (n->key == SETTING_KA_INTERVAL_MAX && value < settings_get(SETTING_KA_INTERVAL_MIN)))
+        return SETTING_ERR_CONFLICT;
+    n->value = value;
+    keepawake_settings_changed();
+    return save(n->key, value, forget) ? SETTING_OK : SETTING_ERR_APPLY;
+}
+
 setting_result_t settings_set(uint8_t key, int16_t value)
 {
+    number_t *n = number(key);
+    if (n)
+        return set_number(n, value);
     if (key != SETTING_LED_GPIO && key != SETTING_VBUS_GPIO)
         return SETTING_ERR_UNKNOWN;
 

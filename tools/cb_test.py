@@ -18,6 +18,9 @@ Needs pyserial, which ESP-IDF's Python already has. After activating ESP-IDF:
     python tools/cb_test.py COM10 get                    # board settings (firmware 0.3.0 and later)
     python tools/cb_test.py COM10 set vbus-gpio 21       # a GPIO, "none", or "default"
     python tools/cb_test.py COM10 set led-gpio 38
+    python tools/cb_test.py COM10 keep-awake on   # or off; then watch for its status (0.5.0 and later)
+    python tools/cb_test.py COM10 set ka-mode wander     # hidden-key, nudge, wander, scroll, mixed
+    python tools/cb_test.py COM10 set ka-idle 30         # seconds; also ka-interval-min/-max
     python tools/cb_test.py COM10 timeout-test    # holds Shift, goes silent, checks the board lets go
     python tools/cb_test.py selftest              # checks the framing code; no board needed
 """
@@ -96,17 +99,22 @@ def decode_frame(encoded: bytes):
 HELLO, HEARTBEAT, SESSION_CONFIG = 0x01, 0x02, 0x03
 KEYBOARD, MOUSE_ABS, MOUSE_REL = 0x10, 0x20, 0x21
 LED, LED_BRIGHTNESS, RELEASE_ALL = 0x30, 0x31, 0x40
-SETTING_GET, SETTING_SET = 0x50, 0x51
-INFO, DEV_HEARTBEAT, TARGET_STATUS, SETTING, ERROR = 0x81, 0x82, 0x90, 0xA0, 0xE0
+SETTING_GET, SETTING_SET, KEEP_AWAKE = 0x50, 0x51, 0x52
+INFO, DEV_HEARTBEAT, TARGET_STATUS, SETTING, KEEP_AWAKE_STATUS, ERROR = 0x81, 0x82, 0x90, 0xA0, 0xA1, 0xE0
 
 STATUS_BITS = ["mounted", "suspended", "kbd_boot", "mouse_boot", "remote_wakeup", "vbus_present",
                "abs_unread"]
-CAP_SETTINGS = 1 << 4
-SETTINGS = {"led-gpio": 1, "vbus-gpio": 2}
+CAP_SETTINGS, CAP_KEEP_AWAKE = 1 << 4, 1 << 5
+SETTINGS = {"led-gpio": 1, "vbus-gpio": 2,
+            "ka-mode": 3, "ka-idle": 4, "ka-interval-min": 5, "ka-interval-max": 6}
+GPIO_SETTINGS = {1, 2}
 SETTING_NAMES = {v: k for k, v in SETTINGS.items()}
 SETTING_VALUES = {"none": -1, "default": -2}
 SETTING_RESULTS = {0: "ok", 1: "unknown setting", 2: "not a usable pin for that",
-                   3: "the other setting uses that pin", 4: "couldn't apply or save it"}
+                   3: "clashes with another setting", 4: "couldn't apply or save it",
+                   5: "out of range"}
+KA_MODES = ["hidden-key", "nudge", "wander", "scroll", "mixed"]
+KA_STATES = ["off", "waiting", "active", "paused (target asleep or not connected)"]
 LED_BITS = ["Num", "Caps", "Scroll"]
 ERRORS = {1: "unknown message type", 2: "bad payload length", 3: "USB report failed"}
 
@@ -164,6 +172,7 @@ class Board:
         self.status = None
         self.printed_status = None
         self.announced = False  # status changes print only after the board line
+        self.keep_awake: str | None = None
         self.last_rx = 0.0
         self.heartbeats = True
         self.got_info = threading.Event()
@@ -203,6 +212,14 @@ class Board:
         elif t == SETTING and len(p) >= 4:
             self.settings[p[0]] = (struct.unpack_from("<h", p, 1)[0], p[3])
             self.got_setting.set()
+        elif t == KEEP_AWAKE_STATUS and len(p) >= 3:
+            state, seconds = p[0], struct.unpack_from("<H", p, 1)[0]
+            name = KA_STATES[state] if state < len(KA_STATES) else f"state {state}"
+            if state == 1:
+                name += f", acting in {seconds // 60}:{seconds % 60:02d}"
+            self.keep_awake = name
+            if self.announced:
+                print(f"  keep awake: {name}")
         elif t == ERROR and len(p) >= 2:
             print(f"  board error: {ERRORS.get(p[0], p[0])} (detail 0x{p[1]:02X})")
         elif t == DEV_HEARTBEAT:
@@ -238,6 +255,8 @@ class Board:
                 time.sleep(0.05)  # let TARGET_STATUS arrive
                 self.announced = True
                 self._print_status()
+                if self.keep_awake:
+                    print(f"  keep awake: {self.keep_awake}")
                 return True
         print("No CodeBlue firmware found on this port.")
         return False
@@ -285,7 +304,12 @@ def cmd_key(b: Board, combo: str, hold: float):
 
 def describe_setting(key: int, value: int, result: int) -> str:
     name = SETTING_NAMES.get(key, f"setting {key}")
-    shown = "none" if value < 0 else f"GPIO{value}"
+    if key in GPIO_SETTINGS:
+        shown = "none" if value < 0 else f"GPIO{value}"
+    elif key == SETTINGS["ka-mode"]:
+        shown = KA_MODES[value] if 0 <= value < len(KA_MODES) else str(value)
+    else:
+        shown = f"{value} s"
     note = "" if result == 0 else f" ({SETTING_RESULTS.get(result, result)})"
     return f"  {name}: {shown}{note}"
 
@@ -307,7 +331,8 @@ def cmd_settings(b: Board, command: str, args: list[str]) -> bool:
         print("This firmware has no board settings (needs firmware 0.3.0 or later).")
         return False
     if command == "get":
-        names = args or list(SETTINGS)
+        names = args or [n for n, k in SETTINGS.items()
+                         if k in GPIO_SETTINGS or b.info["capabilities"] & CAP_KEEP_AWAKE]
         ok = True
         for name in names:
             if name not in SETTINGS:
@@ -320,20 +345,32 @@ def cmd_settings(b: Board, command: str, args: list[str]) -> bool:
                 print(describe_setting(SETTINGS[name], *reply))
         return ok
     if len(args) != 2 or args[0] not in SETTINGS:
-        sys.exit(f"Usage: set <{'|'.join(SETTINGS)}> <GPIO|none|default>")
+        sys.exit(f"Usage: set <{'|'.join(SETTINGS)}> <value|default>")
     name, raw = args
     value = SETTING_VALUES.get(raw.lower())
+    if value is None and name == "ka-mode" and raw.lower() in KA_MODES:
+        value = KA_MODES.index(raw.lower())
     if value is None:
         try:
             value = int(raw.lower().removeprefix("gpio"))
         except ValueError:
-            sys.exit(f"'{raw}' isn't a GPIO number, 'none', or 'default'")
+            sys.exit(f"'{raw}' isn't a number, a mode ({', '.join(KA_MODES)}), 'none', or 'default'")
     reply = setting_request(b, SETTING_SET, struct.pack("<Bh", SETTINGS[name], value))
     if reply is None:
         print(f"  {name}: no answer")
         return False
     print(describe_setting(SETTINGS[name], *reply))
     return reply[1] == 0
+
+
+def cmd_keep_awake(b: Board, args: list[str]) -> bool:
+    if not b.info["capabilities"] & CAP_KEEP_AWAKE:
+        print("This firmware has no keep awake (needs firmware 0.5.0 or later).")
+        return False
+    if len(args) != 1 or args[0] not in ("on", "off"):
+        sys.exit("Usage: keep-awake <on|off>")
+    b.send(encode_frame(KEEP_AWAKE, bytes([1 if args[0] == "on" else 0])))
+    return True
 
 
 def cmd_timeout_test(b: Board):
@@ -423,6 +460,8 @@ def main():
             b.send(encode_frame(LED_BRIGHTNESS, bytes([int(args[0]), 1 if a.persist else 0])))
         elif c in ("get", "set"):
             ok = cmd_settings(b, c, args)
+        elif c == "keep-awake":
+            ok = cmd_keep_awake(b, args)
         elif c == "timeout-test":
             ok = cmd_timeout_test(b)
         else:

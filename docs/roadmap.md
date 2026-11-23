@@ -66,13 +66,13 @@ things worth doing, kept in one place so they don't get lost.
       target that collects the reports and ignores them (SupportAssist on the
       OptiPlex 5080) can't be detected.
 - [ ] Send `ERROR` code 3 when a USB report can't be sent.
-- [ ] Keep-awake ("jiggle") mode: the board nudges the mouse (+1, then -1, so
-      the pointer never drifts) or taps an unused key such as F15 every so
-      often (60 s by default), so the target doesn't sleep or lock. Saved on
-      the board, so it also works standalone: plugged into the target alone,
-      which powers it, with no viewer or computer attached. Toggled from the
-      viewer, paused while someone is in control, with its own LED pattern
-      so nobody forgets it's on.
+- [x] Keep awake (firmware 0.5.0, viewer 0.5.0): after an idle delay, the
+      board taps F15, nudges or glides the pointer, or scrolls a notch (or a
+      mix), at random intervals, so the target doesn't sleep or lock. It runs
+      on the board, so it carries on with no viewer attached; the viewer's
+      **Keep awake** button turns it on and off and shows its state.
+- [x] A status LED pattern while keep awake is on: a white heartbeat, every
+      3 seconds while waiting and every 1.5 seconds while acting.
 - [x] VBUS sense: the firmware reports `vbus_present` (capability bit 3)
       when built with a sense pin, and the viewer tells "asleep" from
       "unplugged or powered off"; the modification is in
