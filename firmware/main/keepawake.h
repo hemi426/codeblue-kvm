@@ -13,7 +13,7 @@
 
 /* Modes (the SETTING_KA_MODE values). */
 enum {
-    KA_MODE_HIDDEN_KEY = 0, /* taps F15, which no real keyboard has */
+    KA_MODE_HIDDEN_KEY = 0, /* taps F15, which no common keyboard has */
     KA_MODE_NUDGE = 1,      /* one count right, then back */
     KA_MODE_WANDER = 2,     /* a short glide at a random angle, then back */
     KA_MODE_SCROLL = 3,     /* one wheel detent down, then back up */

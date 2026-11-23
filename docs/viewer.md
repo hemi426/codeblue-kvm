@@ -104,7 +104,7 @@ board:
 
 | Setting | What it does |
 |---------|--------------|
-| **Mode** | **Mixed** (the default) picks one of the others at random each time. **Hidden key** taps F15, which no real keyboard has. **Nudge** moves the pointer one pixel over and back. **Wander** glides it a short way and back. **Scroll tick** scrolls one notch down and back up. |
+| **Mode** | **Mixed** (the default) picks one of the others at random each time. **Hidden key** taps F15, which no common keyboard has. **Nudge** moves the pointer one pixel over and back. **Wander** glides it a short way and back. **Scroll tick** scrolls one notch down and back up. |
 | **Start after** | Seconds without input before it starts (120 by default). |
 | **Then every** | How often it acts once started: a random wait between the two numbers (15 to 60 seconds by default). |
 
