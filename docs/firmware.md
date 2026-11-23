@@ -80,6 +80,12 @@ later):
   [VBUS sense modification](hardware/vbus-sense.md), choose **Yes** and the
   pin the divider feeds (21 on the tested boards).
 
+[Keep awake](viewer.md#keep-awake)'s settings (its mode, how long the target
+must be idle first, and how often it acts) are board settings too, set from
+the **▾** next to the viewer's **Keep awake** button (firmware 0.5.0 or
+later). Whether keep awake is on isn't saved: it's off whenever the board
+starts.
+
 The board applies each change at once and keeps it across resets and
 firmware updates (0.4.0 and later). Erasing the board, or writing the whole
 image, resets them. It refuses pins it can't use (the strapping, USB, UART,
