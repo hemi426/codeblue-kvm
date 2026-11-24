@@ -66,6 +66,11 @@ internal sealed class MainForm : Form
     private Font? _boldFont;
     private Font BoldFont => _boldFont ??= new Font(Font, FontStyle.Bold);
     private readonly Label _banner;
+    // The other way to show capture: a slim frame at the video area's edges,
+    // on top of the picture's window, so nothing moves or resizes.
+    internal const string IndicatorBanner = "Banner", IndicatorBorder = "Border";
+    private static readonly Color CaptureColor = Color.FromArgb(255, 193, 7);
+    private readonly Panel[] _border = new Panel[4]; // top, bottom, left, right
 
     private IKvmLink? _link;
     private string? _linkPort;
@@ -119,7 +124,16 @@ internal sealed class MainForm : Form
         OpenVlcLog();
         // Each Connect makes its own player (see VideoSession); this is where they draw.
         _video = new Panel { Dock = DockStyle.Fill, BackColor = Color.Black };
-        _video.Resize += (_, _) => { if (_captured) ClipCursorToVideo(); };
+        _video.Resize += (_, _) =>
+        {
+            if (_captured) ClipCursorToVideo();
+            LayOutBorder();
+        };
+        for (int i = 0; i < _border.Length; i++)
+        {
+            _border[i] = new Panel { BackColor = CaptureColor, Visible = false };
+            _video.Controls.Add(_border[i]);
+        }
 
         _connectButton = MakeButton("Connect", (_, _) => ToggleConnect());
         _portBox = MakeCombo(110);
@@ -229,7 +243,7 @@ internal sealed class MainForm : Form
             AutoSize = false,
             Height = Font.Height + 14,
             TextAlign = ContentAlignment.MiddleCenter,
-            BackColor = Color.FromArgb(255, 193, 7),
+            BackColor = CaptureColor,
             ForeColor = Color.Black,
             Font = new Font(Font, FontStyle.Bold),
             Text = ReleaseHint,
@@ -340,7 +354,10 @@ internal sealed class MainForm : Form
         _captureButton.Enabled = _link is not null && !_captured;
         _cadButton.Enabled = _link is not null;
         _boardButton.Enabled = _link is not null;
-        _banner.Visible = _captured;
+        bool border = _settings.CaptureIndicator == IndicatorBorder;
+        _banner.Visible = _captured && !border;
+        foreach (var edge in _border) edge.Visible = _captured && border;
+        LayOutBorder();
 
         // A stuck player holds the dongle until it's unplugged; say so above all else.
         string stuck = _stuck.Count > 0 ? "Video stuck: unplug the dongle and plug it back in. " : "";
@@ -803,7 +820,7 @@ internal sealed class MainForm : Form
         ApplyScale();
         ApplyMouseMode();
         if (_captured) ClipCursorToVideo();
-        UpdateStatusFields();
+        UpdateUi(); // the capture indicator, and the status fields
     }
 
     /// <summary>Sends a full-scale status colour; the link applies the LED % setting.</summary>
@@ -963,6 +980,21 @@ internal sealed class MainForm : Form
     /// Absolute: free to move over the picture, and its position on the picture
     /// is sent to the target, so the target pointer sits exactly where ours is.
     /// </summary>
+    /// <summary>
+    /// Places the capture border along the video area's edges, above the
+    /// picture's window (where there are black bars, it sits in them).
+    /// </summary>
+    private void LayOutBorder()
+    {
+        int w = _video.ClientSize.Width, h = _video.ClientSize.Height;
+        int t = Math.Max(2, (int)Math.Round(4 * DeviceDpi / 96.0));
+        _border[0].Bounds = new Rectangle(0, 0, w, t);
+        _border[1].Bounds = new Rectangle(0, h - t, w, t);
+        _border[2].Bounds = new Rectangle(0, 0, t, h);
+        _border[3].Bounds = new Rectangle(w - t, 0, t, h);
+        foreach (var edge in _border) edge.BringToFront(); // over each session's new window
+    }
+
     private void ClipCursorToVideo(bool center = false)
     {
         if (_link is { AbsoluteMouse: true } link)

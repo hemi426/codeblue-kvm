@@ -14,7 +14,8 @@ target's screen and sends it your keyboard and mouse. To get it, see
    target yet, so it's safe to just watch. (Tick **Video only** to watch a
    screen without a board.)
 3. Click **Capture** (or press Ctrl+Alt+C) to send keyboard and mouse to the
-   target. An amber banner shows while they are captured.
+   target. An amber banner (or a border, if you prefer; see
+   [Viewer options](#viewer-options)) shows while they are captured.
 
 If the board's cable is pulled or the board stops answering, the viewer
 releases capture, keeps the video running, and reconnects by itself when the
@@ -45,6 +46,7 @@ The viewer remembers your choices in `%APPDATA%\CodeBlue\viewer.json`.
 | **Cache ms** | How much video libVLC buffers. The default, 40, keeps lag low. |
 | **Mouse** | How the pointer reaches the target (see [Mouse](#mouse)). |
 | **1:1 pixels** | Shows the capture unscaled, for the sharpest text (also Ctrl+Alt+1). |
+| **When captured** | How the viewer shows that keyboard and mouse are captured. **Banner** (the default) is an amber bar above the video. **Border** is a thin amber frame around the video area instead, which takes no space; it covers the picture's outermost few pixels where the picture reaches the edge. |
 
 Video changes take effect the next time you connect; the mouse and 1:1
 pixels apply at once.

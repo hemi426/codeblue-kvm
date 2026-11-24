@@ -6,7 +6,7 @@ namespace CodeBlue.Viewer;
 internal sealed class ViewerOptionsForm : Form
 {
     private readonly ViewerSettings _settings;
-    private readonly ComboBox _formatBox, _sizeBox, _fpsBox, _mouseBox;
+    private readonly ComboBox _formatBox, _sizeBox, _fpsBox, _mouseBox, _indicatorBox;
     private readonly NumericUpDown _cachingBox;
     private readonly CheckBox _nativeBox;
 
@@ -23,6 +23,7 @@ internal sealed class ViewerOptionsForm : Form
         _cachingBox = new NumericUpDown { Minimum = 0, Maximum = 2000, Increment = 10, Width = width };
         _mouseBox = DialogLayout.Combo(Font, [MainForm.MouseAuto, MainForm.MouseAbsolute, MainForm.MouseRelative], width);
         _nativeBox = new CheckBox { Text = "1:1 pixels (Ctrl+Alt+1)", AutoSize = true };
+        _indicatorBox = DialogLayout.Combo(Font, [MainForm.IndicatorBanner, MainForm.IndicatorBorder], width);
 
         var grid = DialogLayout.Grid();
         DialogLayout.AddHeading(grid, "Video", Font);
@@ -34,16 +35,20 @@ internal sealed class ViewerOptionsForm : Form
             DialogLayout.AddNote(grid, "Video changes take effect the next time you connect.");
         DialogLayout.AddHeading(grid, "Display and mouse", Font);
         DialogLayout.AddRow(grid, "Mouse", _mouseBox);
+        DialogLayout.AddRow(grid, "When captured", _indicatorBox);
         grid.Controls.Add(_nativeBox);
         grid.SetColumnSpan(_nativeBox, 2);
         DialogLayout.AddNote(grid, "Auto uses the absolute pointer, and switches to relative when the " +
-                                   "target asks for a basic boot mouse or doesn't read the absolute pointer.");
+                                   "target asks for a basic boot mouse or doesn't read the absolute pointer. " +
+                                   "While captured, Banner shows a strip above the picture; Border, a slim frame " +
+                                   "at the edges of the video area, over the picture only where it reaches them.");
 
         DialogLayout.Select(_formatBox, settings.Format);
         DialogLayout.Select(_sizeBox, settings.Size);
         DialogLayout.Select(_fpsBox, settings.Fps);
         _cachingBox.Value = Math.Clamp(settings.CachingMs, 0, 2000);
         DialogLayout.Select(_mouseBox, settings.MouseMode);
+        DialogLayout.Select(_indicatorBox, settings.CaptureIndicator);
         _nativeBox.Checked = settings.NativeScale;
 
         var ok = DialogLayout.AddButtons(this, grid);
@@ -54,6 +59,7 @@ internal sealed class ViewerOptionsForm : Form
             _settings.Fps = (string)_fpsBox.SelectedItem!;
             _settings.CachingMs = (int)_cachingBox.Value;
             _settings.MouseMode = (string)_mouseBox.SelectedItem!;
+            _settings.CaptureIndicator = (string)_indicatorBox.SelectedItem!;
             _settings.NativeScale = _nativeBox.Checked;
             DialogResult = DialogResult.OK;
         };

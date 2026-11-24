@@ -22,6 +22,9 @@ internal sealed class ViewerSettings
     public bool NativeScale { get; set; }
     public string MouseMode { get; set; } = "Auto";
 
+    /// <summary>How capture is shown: "Banner" (a strip above the video) or "Border" (a frame at its edges).</summary>
+    public string CaptureIndicator { get; set; } = "Banner";
+
     /// <summary>The Board settings preset last chosen (the board keeps only its pins, not where they came from).</summary>
     public string? BoardPreset { get; set; }
 

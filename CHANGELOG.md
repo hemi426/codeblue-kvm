@@ -8,6 +8,12 @@ Newer features need both sides to have them: Board settings need firmware
 
 ## Viewer
 
+### [0.5.1](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.5.1) (2026-11-23)
+
+- **Viewer options... > When captured:** show capture as a thin amber
+  border around the video instead of the banner, so the video keeps its
+  full height.
+
 ### [0.5.0](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.5.0) (2026-11-22)
 
 - **Keep awake:** a toolbar button that keeps the target from sleeping or
