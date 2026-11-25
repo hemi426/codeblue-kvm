@@ -21,9 +21,12 @@
 #
 # After making the repository public: Settings > Pages > Source: GitHub
 # Actions (once). From then on, each push to main that touches the docs, and
-# each published release, publishes the site. A release run deploys from its
-# tag, so the github-pages environment must allow firmware-v* and viewer-v*
-# tags (Settings > Environments > github-pages > Deployment branches and tags).
+# each published release, publishes the site.
+#
+# The site is only ever built and deployed from main. A release event runs on
+# the release's tag, and a deployment from a tag can report success without
+# going live (viewer 0.6.0's did), so a release just starts this workflow
+# again on main.
 name: Docs site
 
 on:
@@ -46,15 +49,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A published release: rebuild on main, which picks up the new release.
+  # (workflow_dispatch is one of the events GITHUB_TOKEN may start.)
+  rebuild-on-main:
+    name: Rebuild on main
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --repo "$GITHUB_REPOSITORY" --ref main
+
   build:
     name: Build
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
-      # A release event checks out the release's tag by default, which may
-      # be behind main; the site always comes from main.
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'release' && 'main' || '' }}
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -156,7 +169,7 @@ jobs:
     needs: build
     if: >-
       github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || github.event_name == 'release') &&
+      github.ref == 'refs/heads/main' &&
       !github.event.repository.private
     runs-on: ubuntu-latest
     permissions:
