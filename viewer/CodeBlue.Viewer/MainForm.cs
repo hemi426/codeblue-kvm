@@ -879,8 +879,10 @@ internal sealed class MainForm : Form
         var viewer = on ? UpdateCheck.Newer(_settings.LatestViewer, Version.TryParse(ViewerVersion, out var v) ? v : null) : null;
         var board = _link?.FirmwareVersion;
         var firmware = on ? UpdateCheck.Newer(_settings.LatestFirmware, board) : null;
-        _updateField.Visible = viewer is not null || firmware is not null;
-        if (!_updateField.Visible) return;
+        // Not Visible to decide: it reads false until the window is shown.
+        bool show = viewer is not null || firmware is not null;
+        _updateField.Visible = show;
+        if (!show) return;
         _updateField.Text = viewer is not null && firmware is not null ? "Updates available"
             : viewer is not null ? $"Viewer {viewer} available"
             : $"Firmware {firmware} available";

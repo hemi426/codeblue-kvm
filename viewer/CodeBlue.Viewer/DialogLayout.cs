@@ -49,14 +49,18 @@ internal static class DialogLayout
         return caption;
     }
 
-    /// <summary>A line of text across both columns; wrapped, unless it's short enough to be worth keeping whole.</summary>
-    public static Label AddNote(TableLayoutPanel grid, string text = "", bool wrap = true)
+    /// <summary>
+    /// A line of text across both columns; wrapped at <paramref name="width"/> (in pixels at 100%
+    /// scaling), unless it's short enough to be worth keeping whole.
+    /// </summary>
+    public static Label AddNote(TableLayoutPanel grid, string text = "", bool wrap = true, int width = 420)
     {
         var note = new Label
         {
             Text = text,
             AutoSize = true,
-            MaximumSize = wrap ? new Size(420, 0) : Size.Empty,
+            // Scaled for the display, or a note wraps twice as often at 200%.
+            MaximumSize = wrap ? new Size(grid.LogicalToDeviceUnits(width), 0) : Size.Empty,
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(0, 6, 0, 6),
         };

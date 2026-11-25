@@ -100,7 +100,7 @@ things worth doing, kept in one place so they don't get lost.
       An fps field shows **No video** when frames stop. Verified against the
       UGREEN.
 - [ ] Horizontal scrolling (`pan`) from tilt wheels and touchpads.
-- [x] Check for updates: an option in **Viewer options**, off by default.
+- [x] Check for updates (viewer 0.6.0): an option in **Viewer options**, off by default.
       When on, the viewer checks the docs site about once a day and
       shows a quiet note in the status bar when a newer viewer, or newer
       firmware than the connected board's, is out, linking to the docs

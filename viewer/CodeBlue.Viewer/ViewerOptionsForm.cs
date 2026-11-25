@@ -5,6 +5,9 @@ namespace CodeBlue.Viewer;
 /// <summary>The viewer's own options: how it opens the video, and how it handles the mouse and scaling.</summary>
 internal sealed class ViewerOptionsForm : Form
 {
+    // This dialog has the most to say, so its notes run wider, keeping it short enough for small screens.
+    private const int NoteWidth = 560;
+
     private readonly ViewerSettings _settings;
     private readonly ComboBox _formatBox, _sizeBox, _fpsBox, _mouseBox, _indicatorBox;
     private readonly NumericUpDown _cachingBox;
@@ -33,23 +36,21 @@ internal sealed class ViewerOptionsForm : Form
         DialogLayout.AddRow(grid, "FPS", _fpsBox);
         DialogLayout.AddRow(grid, "Cache ms", _cachingBox);
         if (videoRunning)
-            DialogLayout.AddNote(grid, "Video changes take effect the next time you connect.");
+            DialogLayout.AddNote(grid, "Video changes take effect the next time you connect.", width: NoteWidth);
         DialogLayout.AddHeading(grid, "Display and mouse", Font);
         DialogLayout.AddRow(grid, "Mouse", _mouseBox);
         DialogLayout.AddRow(grid, "When captured", _indicatorBox);
         grid.Controls.Add(_nativeBox);
         grid.SetColumnSpan(_nativeBox, 2);
-        DialogLayout.AddNote(grid, "Auto uses the absolute pointer, and switches to relative when the " +
-                                   "target asks for a basic boot mouse or doesn't read the absolute pointer. " +
-                                   "While captured, Banner shows a strip above the picture; Border, a slim frame " +
-                                   "at the edges of the video area, over the picture only where it reaches them.");
+        DialogLayout.AddNote(grid, "Mouse: Auto uses the absolute pointer, and switches to relative when the " +
+                                   "target needs it. When captured: Banner shows a strip above the picture; " +
+                                   "Border, a slim frame around the video area.", width: NoteWidth);
         DialogLayout.AddHeading(grid, "Updates", Font);
         grid.Controls.Add(_updatesBox);
         grid.SetColumnSpan(_updatesBox, 2);
-        DialogLayout.AddNote(grid, "About once a day, reads a small file on the CodeBlue site " +
-                                   "(hemi426.github.io) to see whether a newer viewer, or newer firmware than " +
-                                   "the board's, is out, and says so in the status bar. Nothing is downloaded " +
-                                   "or installed.");
+        DialogLayout.AddNote(grid, "About once a day, checks the CodeBlue site (hemi426.github.io) for a newer " +
+                                   "viewer, or newer firmware than the board's, and says so in the status bar. " +
+                                   "Nothing is downloaded or installed.", width: NoteWidth);
 
         DialogLayout.Select(_formatBox, settings.Format);
         DialogLayout.Select(_sizeBox, settings.Size);
