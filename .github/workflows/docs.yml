@@ -2,6 +2,9 @@
 # change or a release is published, and deploys it to GitHub Pages once the
 # repository is public (Pages on a private repository needs a paid plan).
 #
+# Each build also writes latest.json, the newest viewer and firmware
+# versions, which the viewer's optional update check reads.
+#
 # The site includes the browser installer (docs/firmware.md): each build
 # copies the latest firmware release's images into docs/install/ and writes
 # an ESP Web Tools manifest (codeblue.json) next to them. Browsers can't
@@ -18,9 +21,9 @@
 #
 # After making the repository public: Settings > Pages > Source: GitHub
 # Actions (once). From then on, each push to main that touches the docs, and
-# each published firmware release, publishes the site. A release run deploys
-# from its tag, so the github-pages environment must allow firmware-v* tags
-# (Settings > Environments > github-pages > Deployment branches and tags).
+# each published release, publishes the site. A release run deploys from its
+# tag, so the github-pages environment must allow firmware-v* and viewer-v*
+# tags (Settings > Environments > github-pages > Deployment branches and tags).
 name: Docs site
 
 on:
@@ -45,11 +48,6 @@ concurrency:
 jobs:
   build:
     name: Build
-    # Only firmware releases change the site (the installer serves the latest
-    # firmware); viewer releases have nothing to add.
-    if: >-
-      github.event_name != 'release' ||
-      startsWith(github.event.release.tag_name, 'firmware-v')
     runs-on: ubuntu-latest
     steps:
       # A release event checks out the release's tag by default, which may
@@ -127,6 +125,21 @@ jobs:
           printf 'version: "%s"\n' "$v" > docs/_data/firmware.yml
           ls -l docs/install
           echo "Installer serves firmware $v; updating $keeps." >> "$GITHUB_STEP_SUMMARY"
+
+      # The viewer's update check reads this. A kind with no release yet is
+      # left out, and the viewer treats a missing version as no news.
+      - name: Write latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts \
+            --exclude-pre-releases --limit 100 --json tagName,publishedAt \
+            --jq 'def latest($p): [.[] | select(.tagName | startswith($p))]
+                    | sort_by(.publishedAt) | last | .tagName | if . then ltrimstr($p) else . end;
+                  {viewer: latest("viewer-v"), firmware: latest("firmware-v")}
+                  | with_entries(select(.value != null))' > docs/latest.json
+          jq . docs/latest.json
+          echo "latest.json: $(jq -c . docs/latest.json)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build the site
         working-directory: docs

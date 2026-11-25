@@ -47,6 +47,7 @@ The viewer remembers your choices in `%APPDATA%\CodeBlue\viewer.json`.
 | **Mouse** | How the pointer reaches the target (see [Mouse](#mouse)). |
 | **1:1 pixels** | Shows the capture unscaled, for the sharpest text (also Ctrl+Alt+1). |
 | **When captured** | How the viewer shows that keyboard and mouse are captured. **Banner** (the default) is an amber bar above the video. **Border** is a thin amber frame around the video area instead, which takes no space; it covers the picture's outermost few pixels where the picture reaches the edge. |
+| **Check for updates** | Off by default. When on, the viewer checks the CodeBlue site about once a day and, if a newer viewer or newer firmware than the board's is out, says so in the status bar (see below). It reads one small file, [latest.json](https://hemi426.github.io/codeblue-kvm/latest.json), and sends nothing else; nothing is downloaded or installed. If the site can't be reached, it says nothing and tries again later. |
 
 Video changes take effect the next time you connect; the mouse and 1:1
 pixels apply at once.
@@ -115,6 +116,11 @@ board:
 The status bar shows the connection and the target's state on the left, and
 on the right:
 
+- **Updates:** with **Check for updates** on, **Viewer 0.6.0 available**,
+  **Firmware 0.6.0 available** (newer than the connected board's), or
+  **Updates available** for both. Hover over it for the versions; click it
+  to open this site, which has both installers. Hidden when there's nothing
+  new.
 - **Keep awake:** **Keep awake in 1:42** while it counts down, **Keeping
   awake** once it's acting, **Keep awake paused** while the target is asleep
   or not connected, or **Keep awake off**. Shown with firmware 0.5.0 or

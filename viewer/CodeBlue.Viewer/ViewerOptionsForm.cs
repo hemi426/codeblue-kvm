@@ -8,7 +8,7 @@ internal sealed class ViewerOptionsForm : Form
     private readonly ViewerSettings _settings;
     private readonly ComboBox _formatBox, _sizeBox, _fpsBox, _mouseBox, _indicatorBox;
     private readonly NumericUpDown _cachingBox;
-    private readonly CheckBox _nativeBox;
+    private readonly CheckBox _nativeBox, _updatesBox;
 
     public ViewerOptionsForm(Form owner, ViewerSettings settings, bool videoRunning)
     {
@@ -24,6 +24,7 @@ internal sealed class ViewerOptionsForm : Form
         _mouseBox = DialogLayout.Combo(Font, [MainForm.MouseAuto, MainForm.MouseAbsolute, MainForm.MouseRelative], width);
         _nativeBox = new CheckBox { Text = "1:1 pixels (Ctrl+Alt+1)", AutoSize = true };
         _indicatorBox = DialogLayout.Combo(Font, [MainForm.IndicatorBanner, MainForm.IndicatorBorder], width);
+        _updatesBox = new CheckBox { Text = "Check for updates", AutoSize = true };
 
         var grid = DialogLayout.Grid();
         DialogLayout.AddHeading(grid, "Video", Font);
@@ -42,6 +43,13 @@ internal sealed class ViewerOptionsForm : Form
                                    "target asks for a basic boot mouse or doesn't read the absolute pointer. " +
                                    "While captured, Banner shows a strip above the picture; Border, a slim frame " +
                                    "at the edges of the video area, over the picture only where it reaches them.");
+        DialogLayout.AddHeading(grid, "Updates", Font);
+        grid.Controls.Add(_updatesBox);
+        grid.SetColumnSpan(_updatesBox, 2);
+        DialogLayout.AddNote(grid, "About once a day, reads a small file on the CodeBlue site " +
+                                   "(hemi426.github.io) to see whether a newer viewer, or newer firmware than " +
+                                   "the board's, is out, and says so in the status bar. Nothing is downloaded " +
+                                   "or installed.");
 
         DialogLayout.Select(_formatBox, settings.Format);
         DialogLayout.Select(_sizeBox, settings.Size);
@@ -50,6 +58,7 @@ internal sealed class ViewerOptionsForm : Form
         DialogLayout.Select(_mouseBox, settings.MouseMode);
         DialogLayout.Select(_indicatorBox, settings.CaptureIndicator);
         _nativeBox.Checked = settings.NativeScale;
+        _updatesBox.Checked = settings.CheckForUpdates;
 
         var ok = DialogLayout.AddButtons(this, grid);
         ok.Click += (_, _) =>
@@ -61,6 +70,7 @@ internal sealed class ViewerOptionsForm : Form
             _settings.MouseMode = (string)_mouseBox.SelectedItem!;
             _settings.CaptureIndicator = (string)_indicatorBox.SelectedItem!;
             _settings.NativeScale = _nativeBox.Checked;
+            _settings.CheckForUpdates = _updatesBox.Checked;
             DialogResult = DialogResult.OK;
         };
     }

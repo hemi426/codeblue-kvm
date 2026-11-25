@@ -25,6 +25,14 @@ internal sealed class ViewerSettings
     /// <summary>How capture is shown: "Banner" (a strip above the video) or "Border" (a frame at its edges).</summary>
     public string CaptureIndicator { get; set; } = "Banner";
 
+    /// <summary>Opt-in: look for newer releases about once a day (see UpdateCheck).</summary>
+    public bool CheckForUpdates { get; set; }
+
+    /// <summary>When the last update check succeeded, and what it found, so the note shows at startup without asking again.</summary>
+    public DateTime? UpdateCheckedUtc { get; set; }
+    public string? LatestViewer { get; set; }
+    public string? LatestFirmware { get; set; }
+
     /// <summary>The Board settings preset last chosen (the board keeps only its pins, not where they came from).</summary>
     public string? BoardPreset { get; set; }
 

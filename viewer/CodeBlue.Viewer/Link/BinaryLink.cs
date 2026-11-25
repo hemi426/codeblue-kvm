@@ -59,6 +59,7 @@ internal sealed class BinaryLink : IKvmLink
     private readonly Queue<TaskCompletionSource<SettingReply>> _settingWaiters = new();
 
     public string ProtocolName { get; private set; } = "CodeBlue";
+    public Version? FirmwareVersion { get; private set; }
     public TargetStatus? TargetStatus => _status;
     public int? LedBrightness { get; private set; }
     public bool SupportsAbsolute { get; private set; }
@@ -166,6 +167,7 @@ internal sealed class BinaryLink : IKvmLink
                 _infoMinor = p[1];
                 string board = Encoding.UTF8.GetString(p, 8, p.Length - 8);
                 ProtocolName = $"CodeBlue {p[2]}.{p[3]}.{p[4]} ({board})";
+                FirmwareVersion = new Version(p[2], p[3], p[4]);
                 LedBrightness = p[7];
                 ushort caps = BinaryPrimitives.ReadUInt16LittleEndian(p.AsSpan(5));
                 SupportsAbsolute = (caps & 0x0001) != 0;

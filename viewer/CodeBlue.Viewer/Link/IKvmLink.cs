@@ -12,6 +12,9 @@ internal interface IKvmLink : IDisposable
     /// <summary>Human-readable protocol (and firmware, if known) for the status bar.</summary>
     string ProtocolName { get; }
 
+    /// <summary>The board's firmware version, once it has said.</summary>
+    Version? FirmwareVersion { get; }
+
     /// <summary>Raised (on a background thread) if the connection fails.</summary>
     event Action<Exception>? Faulted;
 

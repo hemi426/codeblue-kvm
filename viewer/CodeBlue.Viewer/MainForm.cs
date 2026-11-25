@@ -59,7 +59,9 @@ internal sealed class MainForm : Form
     // Status bar: the main message on the left, fixed fields on the right.
     private readonly Panel _statusBar;
     private readonly Label _status;
-    private readonly Label _keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField;
+    private readonly Label _updateField, _keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField;
+    private readonly System.Windows.Forms.Timer _updateTimer; // asks whether a check is due
+    private bool _checkingUpdates;
     private readonly ToolTip _statusTips = new();
     private readonly System.Windows.Forms.Timer _transientTimer;
     private string _baseStatus = ""; // what the main message shows when no transient message is up
@@ -208,6 +210,12 @@ internal sealed class MainForm : Form
             AutoEllipsis = true,
         };
         // Fixed widths (sized for the bold, widest text), so nothing shifts as fields light up.
+        // Shown only when a check has found something newer; a click opens the docs site.
+        _updateField = MakeStatusField("Firmware 00.00.00 available", statusHeight);
+        _updateField.ForeColor = SystemColors.HotTrack;
+        _updateField.Cursor = Cursors.Hand;
+        _updateField.Visible = false;
+        _updateField.Click += (_, _) => OpenSite();
         _keepAwakeField = MakeStatusField("Keep awake in 60:00", statusHeight);
         _fpsField = MakeStatusField("Video off", statusHeight);
         _statusTips.SetToolTip(_fpsField, "Frames per second shown from the capture dongle");
@@ -226,7 +234,7 @@ internal sealed class MainForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
-        fields.Controls.AddRange([_keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField]);
+        fields.Controls.AddRange([_updateField, _keepAwakeField, _fpsField, _mouseField, _numField, _capsField, _scrollField]);
         _statusBar = new Panel { Dock = DockStyle.Bottom, Height = statusHeight };
         _statusBar.Controls.Add(_status); // fills what the fields leave
         _statusBar.Controls.Add(fields);
@@ -287,6 +295,12 @@ internal sealed class MainForm : Form
 
         // Frame rate, read off the UI thread: libVLC calls are what we can't trust to return.
         _fpsTimer = new System.Threading.Timer(_ => SampleFrameRate(), null, 500, 500);
+
+        // The update check (if it's on): once the window is up, then whenever a day has passed.
+        _updateTimer = new System.Windows.Forms.Timer { Interval = 60 * 60 * 1000 };
+        _updateTimer.Tick += (_, _) => CheckForUpdates();
+        _updateTimer.Start();
+        Shown += (_, _) => CheckForUpdates();
 
         UpdateUi();
     }
@@ -407,6 +421,7 @@ internal sealed class MainForm : Form
         }
 
         UpdateKeepAwake();
+        UpdateUpdateField();
 
         // Lock keys only mean something while the target has the keyboard awake.
         var t = _link?.TargetStatus is { Mounted: true, Suspended: false } s ? s : default;
@@ -821,6 +836,71 @@ internal sealed class MainForm : Form
         ApplyMouseMode();
         if (_captured) ClipCursorToVideo();
         UpdateUi(); // the capture indicator, and the status fields
+        CheckForUpdates(); // in case it was just turned on
+    }
+
+    // ---------------------------------------------------------------- Update check
+
+    /// <summary>Asks the docs site for the latest versions, if the option is on and a day has passed.</summary>
+    private async void CheckForUpdates()
+    {
+        if (!_settings.CheckForUpdates || _checkingUpdates) return;
+        var now = DateTime.UtcNow;
+        if (_settings.UpdateCheckedUtc is DateTime last && last <= now && now - last < UpdateCheck.Interval) return;
+        _checkingUpdates = true;
+        try
+        {
+            var latest = await UpdateCheck.FetchAsync();
+            if (_closing) return;
+            if (latest is null)
+            {
+                // Quietly try again next hour.
+                WriteLog("codeblue: update check: couldn't read the CodeBlue site");
+                return;
+            }
+            _settings.UpdateCheckedUtc = now;
+            _settings.LatestViewer = latest.Viewer;
+            _settings.LatestFirmware = latest.Firmware;
+            _settings.Save();
+            WriteLog($"codeblue: update check: latest viewer {latest.Viewer ?? "unknown"}, " +
+                     $"firmware {latest.Firmware ?? "unknown"}");
+            UpdateUpdateField();
+        }
+        finally
+        {
+            _checkingUpdates = false;
+        }
+    }
+
+    /// <summary>The status bar note: a newer viewer, or newer firmware than the connected board's.</summary>
+    private void UpdateUpdateField()
+    {
+        bool on = _settings.CheckForUpdates;
+        var viewer = on ? UpdateCheck.Newer(_settings.LatestViewer, Version.TryParse(ViewerVersion, out var v) ? v : null) : null;
+        var board = _link?.FirmwareVersion;
+        var firmware = on ? UpdateCheck.Newer(_settings.LatestFirmware, board) : null;
+        _updateField.Visible = viewer is not null || firmware is not null;
+        if (!_updateField.Visible) return;
+        _updateField.Text = viewer is not null && firmware is not null ? "Updates available"
+            : viewer is not null ? $"Viewer {viewer} available"
+            : $"Firmware {firmware} available";
+        var tip = new List<string>();
+        if (viewer is not null) tip.Add($"Viewer {viewer} is out (this is {ViewerVersion}).");
+        if (firmware is not null) tip.Add($"Firmware {firmware} is out (the board has {board}).");
+        tip.Add("Click to open the CodeBlue site.");
+        _statusTips.SetToolTip(_updateField, string.Join("\n", tip));
+    }
+
+    private void OpenSite()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateCheck.SiteUrl) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            ShowTransient($"Couldn't open a browser. The CodeBlue site: {UpdateCheck.SiteUrl}");
+        }
     }
 
     /// <summary>Sends a full-scale status colour; the link applies the LED % setting.</summary>

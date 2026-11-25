@@ -8,6 +8,14 @@ Newer features need both sides to have them: Board settings need firmware
 
 ## Viewer
 
+### Unreleased
+
+- **Viewer options... > Check for updates:** off by default. When on, the
+  viewer checks the CodeBlue site about once a day and says in the status
+  bar when a newer viewer, or newer firmware than the connected board's, is
+  out; click the note to open the site. It never downloads or installs
+  anything.
+
 ### [0.5.1](https://github.com/hemi426/codeblue-kvm/releases/tag/viewer-v0.5.1) (2026-11-23)
 
 - **Viewer options... > When captured:** show capture as a thin amber
